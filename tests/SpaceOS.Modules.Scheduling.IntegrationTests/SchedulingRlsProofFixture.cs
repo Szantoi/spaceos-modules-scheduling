@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SpaceOS.Modules.Hosting.RlsFixtures;
 using SpaceOS.Modules.Scheduling.Infrastructure.Persistence;
@@ -46,8 +47,7 @@ public sealed class SchedulingRlsProofFixture : IAsyncLifetime
 
         AdminConnectionString = _inner.AdminConnectionString;
 
-        await CreateSchemaAsync();
-        await ApplyRlsAsync();
+        await ApplyMigrationsAsync();
 
         // The role is created AFTER the DDL so it owns nothing: an owner would need FORCE RLS
         // to be constrained, and this way the test also proves the grant path works.
@@ -81,56 +81,18 @@ public sealed class SchedulingRlsProofFixture : IAsyncLifetime
         return connection;
     }
 
-    private async Task CreateSchemaAsync()
+    private async Task ApplyMigrationsAsync()
     {
-        // Hand-written DDL rather than EnsureCreated: the proof must assert against exactly
-        // the table and column names the RLS policies reference, and a silent EF naming
-        // change would otherwise make the policies apply to nothing.
-        const string ddl = """
-            CREATE SCHEMA IF NOT EXISTS scheduling;
+        // The real migration, not a hand-written copy of it. This is what makes the proof
+        // meaningful: if the migration ever stops producing the tables or their policies,
+        // every fact below fails here rather than passing against a schema only the test knows.
+        var options = new DbContextOptionsBuilder<SchedulingDbContext>()
+            .UseNpgsql(AdminConnectionString, npgsql => npgsql.MigrationsHistoryTable(
+                "__EFMigrationsHistory", SchedulingDbContext.SchemaName))
+            .Options;
 
-            CREATE TABLE scheduling."schedule_runs" (
-                "id" uuid PRIMARY KEY,
-                "tenant_id" uuid NOT NULL,
-                "project_ref" uuid NOT NULL,
-                "created_at_utc" timestamptz NOT NULL
-            );
-
-            CREATE TABLE scheduling."schedule_revisions" (
-                "id" uuid PRIMARY KEY,
-                "run_id" uuid NOT NULL REFERENCES scheduling."schedule_runs"("id") ON DELETE CASCADE,
-                "sequence" integer NOT NULL,
-                "content_hash" varchar(64) NOT NULL,
-                "state" varchar(32) NOT NULL,
-                "created_at_utc" timestamptz NOT NULL
-            );
-
-            -- Present in the EF model and therefore required here too: two revisions numbered
-            -- 1 in the same run would make the chain ambiguous. The model/RLS sync guard keeps
-            -- the two definitions from drifting apart again.
-            CREATE UNIQUE INDEX "ux_schedule_revisions_run_sequence"
-                ON scheduling."schedule_revisions" ("run_id", "sequence");
-
-            CREATE TABLE scheduling."operation_plans" (
-                "revision_id" uuid NOT NULL REFERENCES scheduling."schedule_revisions"("id") ON DELETE CASCADE,
-                "operation_id" varchar(128) NOT NULL,
-                "resource_key" varchar(128) NOT NULL,
-                "start_minute" numeric(18,4) NOT NULL,
-                "finish_minute" numeric(18,4) NOT NULL,
-                "automatically_planned" boolean NOT NULL,
-                PRIMARY KEY ("revision_id", "operation_id")
-            );
-            """;
-
-        await ExecuteAsAdminAsync(ddl);
-    }
-
-    private async Task ApplyRlsAsync()
-    {
-        foreach (var statement in SchedulingRlsSql.Enable())
-        {
-            await ExecuteAsAdminAsync(statement);
-        }
+        await using var context = new SchedulingDbContext(options, () => null);
+        await context.Database.MigrateAsync();
     }
 
     private async Task ExecuteAsAdminAsync(string sql)

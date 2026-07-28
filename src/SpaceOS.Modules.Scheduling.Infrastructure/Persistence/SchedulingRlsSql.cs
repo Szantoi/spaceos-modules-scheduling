@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using SpaceOS.Modules.Hosting.Persistence;
 
 namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence;
@@ -25,6 +26,17 @@ public static class SchedulingRlsSql
 
     /// <summary>Every table the proof suite must find FORCE-protected.</summary>
     public static IReadOnlyList<string> AllTables => [RunsTable, RevisionsTable, OperationsTable];
+
+    /// <summary>Statements that remove the policies again (migration Down counterpart).</summary>
+    /// <remarks>
+    /// Derived from <see cref="AllTables"/> rather than hand-listed, so a table added to the
+    /// schema cannot be left with a policy nobody knows how to remove.
+    /// </remarks>
+    public static IReadOnlyList<string> Disable(string schema = SchedulingDbContext.SchemaName) =>
+    [
+        .. AllTables.Select(table => RlsMigrationSql.DisableTenantRls(schema, table)),
+        RlsMigrationSql.DropSetTenantContextFunction(schema),
+    ];
 
     /// <summary>Statements that enable fail-closed isolation across the schema.</summary>
     public static IReadOnlyList<string> Enable(string schema = SchedulingDbContext.SchemaName) =>
