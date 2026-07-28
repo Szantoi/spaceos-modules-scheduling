@@ -17,6 +17,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Infrastructure.Tests", "tests\SpaceOS.Modules.Scheduling.Infrastructure.Tests\SpaceOS.Modules.Scheduling.Infrastructure.Tests.csproj", "{C9F394A2-73ED-4C9D-97F4-D252A1EA030C}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "host", "host", "{227DA368-667F-449B-9BA7-3DD378DBA941}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Host", "host\SpaceOS.Modules.Scheduling.Host\SpaceOS.Modules.Scheduling.Host.csproj", "{199FE541-3C98-4833-96AE-EDDE19A5B4DA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -46,6 +50,10 @@ Global
 		{C9F394A2-73ED-4C9D-97F4-D252A1EA030C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C9F394A2-73ED-4C9D-97F4-D252A1EA030C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C9F394A2-73ED-4C9D-97F4-D252A1EA030C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{199FE541-3C98-4833-96AE-EDDE19A5B4DA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{199FE541-3C98-4833-96AE-EDDE19A5B4DA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{199FE541-3C98-4833-96AE-EDDE19A5B4DA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{199FE541-3C98-4833-96AE-EDDE19A5B4DA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{51524C16-78D1-4C9A-AC28-9A210306CD3D} = {793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}
@@ -53,5 +61,6 @@ Global
 		{794A5AA0-7B90-4566-A7C6-23BE49B2DB6A} = {793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}
 		{AA3C09D6-CBD7-4374-8220-1AD60898F2B9} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
 		{C9F394A2-73ED-4C9D-97F4-D252A1EA030C} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
+		{199FE541-3C98-4833-96AE-EDDE19A5B4DA} = {227DA368-667F-449B-9BA7-3DD378DBA941}
 	EndGlobalSection
 EndGlobal
