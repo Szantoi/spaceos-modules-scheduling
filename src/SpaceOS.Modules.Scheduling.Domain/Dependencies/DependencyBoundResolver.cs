@@ -41,6 +41,11 @@ public static class DependencyBoundResolver
                 "Predecessor finish precedes its start.", nameof(input));
         }
 
+        // Deliberately conservative ordering: this throws whenever a release is present and
+        // no policy was chosen, even in the case where a fixed override would have won and
+        // the release never mattered. Silently accepting that case would let a caller ship
+        // an unconfigured resolver and only discover the gap on the first edge without a
+        // fixed date -- in production, on a real schedule.
         if (input.PartialReleaseMinute.HasValue && partialReleasePolicy == PartialReleasePolicy.Unspecified)
         {
             throw new InvalidOperationException(

@@ -13,21 +13,34 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCAN_DIR="$ROOT/src"
+INCLUDES=(--include='*.cs' --include='*.sql' --include='*.json' --include='*.csproj' --include='*.yaml' --include='*.yml')
 
-# Whole words only. The instance name "Doorstar" is NOT a hit: naming the tenant whose
-# reference implementation a rule came from is provenance, and root explicitly requires
-# the "doorstar-baseline-v1 (not final)" label in the code. What is banned is the
-# industry TAXONOMY leaking into core identifiers and concepts.
+# Two lists, because one matching mode cannot serve both languages.
 #
-# Naming rule that keeps this guard simple: for a scheduling time window use "slot" or
-# "interval", never "window" -- the latter is a Kernel industry module key.
-TERMS='door|cabinet|window|furniture|joinery|timber|lumber|plywood|veneer|sawmill|woodwork|ajtó|ajto|szekrény|szekreny|ablak|bútor|butor|asztalos|faipar|lapszab'
+# WORD_TERMS are matched as WHOLE WORDS: as substrings they would fire on innocent
+# code -- "door" inside the instance name Doorstar (which root explicitly requires in
+# the "doorstar-baseline-v1" label), "tok" inside "token", "mdf" inside a hash.
+WORD_TERMS='door|cabinet|window|furniture|joinery|timber|lumber|plywood|veneer|sawmill|woodwork|mdf|tok|lamella|fólia|folia|zsanér|zsaner|vasalat'
+#
+# SUBSTRING_TERMS are matched ANYWHERE, because Hungarian compounds glue the domain
+# word to its neighbour ("Ajtólap", "tokmag", "élzárásPerc") and whole-word matching
+# would sail straight past them. Only accented/unambiguous stems are listed: a bare
+# "pres" would hit "present"/"expression", so it is not here.
+SUBSTRING_TERMS='ajtó|ajto|szekrény|szekreny|ablak|bútor|butor|asztalos|faipar|lapszab|furnér|furner|élzár|elzar|prés|forgács|forgacs|rétegelt|retegelt|pácol|pacol|csiszol'
 
 echo "ADR-067 vocabulary guard: scanning $SCAN_DIR"
 
-if matches=$(grep -rEniw "($TERMS)" "$SCAN_DIR" --include='*.cs' 2>/dev/null); then
+hits=''
+if word_hits=$(grep -rEniw "($WORD_TERMS)" "$SCAN_DIR" "${INCLUDES[@]}" 2>/dev/null); then
+  hits+="$word_hits"$'\n'
+fi
+if substring_hits=$(grep -rEni "($SUBSTRING_TERMS)" "$SCAN_DIR" "${INCLUDES[@]}" 2>/dev/null); then
+  hits+="$substring_hits"$'\n'
+fi
+
+if [ -n "${hits//[$'\n']/}" ]; then
   echo "FAIL: industry vocabulary found in the scheduling core:" >&2
-  echo "$matches" >&2
+  printf '%s' "$hits" | sort -u >&2
   echo "" >&2
   echo "Move the term to joinerytech.scheduling-standards (ADR-069 §3) or rename it." >&2
   exit 1

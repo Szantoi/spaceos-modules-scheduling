@@ -115,8 +115,20 @@ public static class DependencyGraph
         };
 
     /// <summary>Maps a wire relation code ("FS", "SS", "FF", "SF") to its enum value.</summary>
-    public static bool TryParseRelationCode(string code, out DependencyType type) =>
-        RelationCodes.TryGetValue(code ?? string.Empty, out type);
+    /// <remarks>
+    /// The parameter is nullable because the codes arrive from an import boundary where a
+    /// missing cell is normal. A null is simply "not a known code" — never an exception.
+    /// </remarks>
+    public static bool TryParseRelationCode(string? code, out DependencyType type)
+    {
+        if (code is null)
+        {
+            type = default;
+            return false;
+        }
+
+        return RelationCodes.TryGetValue(code, out type);
+    }
 
     /// <summary>Validates nodes and edges, then orders the network.</summary>
     public static DependencyGraphValidation Validate(
@@ -233,6 +245,4 @@ public static class DependencyGraph
 
         return order.Count == nodeIds.Count ? order : null;
     }
-
-    private static bool IsFinite(decimal value) => true; // decimal cannot hold NaN/Infinity
 }
