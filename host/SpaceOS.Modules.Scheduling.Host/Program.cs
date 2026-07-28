@@ -2,12 +2,12 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SpaceOS.Modules.Hosting.Auth;
+using SpaceOS.Modules.Hosting.Authorization;
 using SpaceOS.Modules.Hosting.Modules;
 using SpaceOS.Modules.Hosting.Tenancy;
 using SpaceOS.Modules.Scheduling.Host;
 
-// PLAN-03 M2 host skeleton. Read endpoints arrive in M3 (the Doorstar consumption gate);
-// today this host exists to prove the module is runnable and correctly wired.
+// PLAN-03 M3: the read-only published contract (the Doorstar consumption gate).
 var builder = WebApplication.CreateBuilder(args);
 
 // Shared module-host auth (ADR-061): Keycloak JWT bearer with fail-fast configuration.
@@ -20,6 +20,11 @@ builder.Services.AddSpaceOsModuleTenancy();
 
 builder.Services.AddSchedulingModule(builder.Configuration);
 builder.Services.AddHealthChecks();
+
+// The entitlement policy the API group requires. Registering it next to the module keeps
+// the two facts -- "this host serves spaceos.scheduling" and "a caller must be entitled to
+// spaceos.scheduling" -- from drifting apart.
+builder.Services.AddRequiredEnabledModulePolicy(SchedulingModule.Descriptor.ModuleId);
 
 var app = builder.Build();
 
@@ -34,6 +39,10 @@ app.UseSpaceOsModuleTenancy();
 // Anonymous by design: an orchestrator or a load balancer must be able to see liveness
 // without a token. It exposes module identity and version only, never tenant data.
 app.MapModuleHealth(SchedulingModule.Descriptor);
+
+// Everything below /api/scheduling/v1 requires authentication, a resolved tenant AND the
+// module entitlement -- see SchedulingEndpoints.
+app.MapSchedulingApi();
 
 app.Run();
 

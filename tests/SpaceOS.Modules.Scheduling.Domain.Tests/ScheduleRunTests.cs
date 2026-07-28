@@ -20,6 +20,17 @@ public sealed class ScheduleRunTests
         EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666")),
         TaskRef.From(Guid.Parse("33333333-4444-4555-8666-777777777777")));
 
+    /// <summary>
+    /// Derives a calendar pin for every resource the operations use. Production code takes
+    /// the pins from the calendar layer; a test only needs them to be present and consistent.
+    /// </summary>
+    private static IReadOnlyDictionary<string, int> PinsFor(IReadOnlyList<OperationPlan> operations) =>
+        // Distinct: several operations share one resource, and a pin is per RESOURCE.
+        operations
+            .Select(operation => operation.ResourceKey)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(resourceKey => resourceKey, _ => 1, StringComparer.Ordinal);
+
     private static ScheduleRun NewRun() =>
         ScheduleRun.Open(Guid.NewGuid(), TenantId, TestProject, Now);
 
@@ -60,8 +71,8 @@ public sealed class ScheduleRunTests
     {
         var run = NewRun();
 
-        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
-        var second = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), Now);
+        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
+        var second = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), PinsFor(Operations("a", "b")), Now);
 
         Assert.Equal(1, first.Sequence);
         Assert.Equal(2, second.Sequence);
@@ -72,8 +83,8 @@ public sealed class ScheduleRunTests
     public void Publishing_supersedes_the_previous_plan_in_the_same_step()
     {
         var run = NewRun();
-        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
-        var second = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), Now);
+        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
+        var second = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), PinsFor(Operations("a", "b")), Now);
 
         run.Publish(first.Id);
         var superseded = run.Publish(second.Id);
@@ -88,7 +99,7 @@ public sealed class ScheduleRunTests
     {
         var run = NewRun();
         var revisions = Enumerable.Range(0, 4)
-            .Select(index => run.AddProposal(Guid.NewGuid(), Operations($"op{index}"), Now))
+            .Select(index => run.AddProposal(Guid.NewGuid(), Operations($"op{index}"), PinsFor(Operations($"op{index}")), Now))
             .ToArray();
 
         foreach (var revision in revisions)
@@ -104,10 +115,10 @@ public sealed class ScheduleRunTests
     public void A_shadow_revision_does_not_disturb_the_published_plan()
     {
         var run = NewRun();
-        var published = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var published = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
         run.Publish(published.Id);
 
-        var shadow = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), Now);
+        var shadow = run.AddProposal(Guid.NewGuid(), Operations("a", "b"), PinsFor(Operations("a", "b")), Now);
         run.MoveToShadow(shadow.Id);
 
         Assert.Same(published, run.PublishedRevision);
@@ -118,7 +129,7 @@ public sealed class ScheduleRunTests
     public void A_shadow_revision_can_be_promoted_to_published()
     {
         var run = NewRun();
-        var shadow = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var shadow = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
         run.MoveToShadow(shadow.Id);
 
         run.Publish(shadow.Id);
@@ -130,7 +141,7 @@ public sealed class ScheduleRunTests
     public void A_discarded_revision_is_terminal()
     {
         var run = NewRun();
-        var revision = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var revision = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
         run.Discard(revision.Id);
 
         Assert.True(revision.IsTerminal);
@@ -142,8 +153,8 @@ public sealed class ScheduleRunTests
     public void A_superseded_revision_cannot_be_republished()
     {
         var run = NewRun();
-        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
-        var second = run.AddProposal(Guid.NewGuid(), Operations("b"), Now);
+        var first = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
+        var second = run.AddProposal(Guid.NewGuid(), Operations("b"), PinsFor(Operations("b")), Now);
         run.Publish(first.Id);
         run.Publish(second.Id);
 
@@ -156,10 +167,10 @@ public sealed class ScheduleRunTests
         // The ordering matters: if Publish superseded the old revision before validating
         // the new one, this run would end up with NO active plan at all.
         var run = NewRun();
-        var published = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var published = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
         run.Publish(published.Id);
 
-        var discarded = run.AddProposal(Guid.NewGuid(), Operations("b"), Now);
+        var discarded = run.AddProposal(Guid.NewGuid(), Operations("b"), PinsFor(Operations("b")), Now);
         run.Discard(discarded.Id);
 
         Assert.Throws<InvalidOperationException>(() => run.Publish(discarded.Id));
@@ -172,7 +183,7 @@ public sealed class ScheduleRunTests
     {
         var run = NewRun();
         var other = NewRun();
-        var foreign = other.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var foreign = other.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
 
         Assert.Throws<InvalidOperationException>(() => run.Publish(foreign.Id));
     }
@@ -183,7 +194,7 @@ public sealed class ScheduleRunTests
         var run = NewRun();
         var input = new List<OperationPlan>(Operations("a"));
 
-        var revision = run.AddProposal(Guid.NewGuid(), input, Now);
+        var revision = run.AddProposal(Guid.NewGuid(), input, PinsFor(input), Now);
         var hashAtCreation = revision.ContentHash;
         input.Add(Operations("b").Single());
 
@@ -198,7 +209,7 @@ public sealed class ScheduleRunTests
         var duplicated = new List<OperationPlan>(Operations("a"));
         duplicated.Add(duplicated[0] with { ResourceKey = "resource-2" });
 
-        Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), duplicated, Now));
+        Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), duplicated, PinsFor(duplicated), Now));
     }
 
     [Fact]
@@ -213,7 +224,7 @@ public sealed class ScheduleRunTests
             },
         };
 
-        Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), inverted, Now));
+        Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), inverted, PinsFor(inverted), Now));
     }
 
     [Fact]
@@ -238,7 +249,7 @@ public sealed class ScheduleRunTests
         };
 
         var exception = Assert.Throws<ArgumentException>(
-            () => run.AddProposal(Guid.NewGuid(), foreign, Now));
+            () => run.AddProposal(Guid.NewGuid(), foreign, PinsFor(foreign), Now));
         Assert.Contains("plans project", exception.Message, StringComparison.Ordinal);
     }
 
@@ -247,7 +258,7 @@ public sealed class ScheduleRunTests
     {
         var run = NewRun();
 
-        var revision = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+        var revision = run.AddProposal(Guid.NewGuid(), Operations("a"), PinsFor(Operations("a")), Now);
 
         Assert.Single(revision.Operations);
     }
@@ -264,7 +275,7 @@ public sealed class ScheduleRunTests
             },
         };
 
-        var revision = run.AddProposal(Guid.NewGuid(), milestone, Now);
+        var revision = run.AddProposal(Guid.NewGuid(), milestone, PinsFor(milestone), Now);
         Assert.Single(revision.Operations);
     }
 }

@@ -479,6 +479,11 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 
+                            b1.Property<string>("CalendarRevisions")
+                                .IsRequired()
+                                .HasColumnType("jsonb")
+                                .HasColumnName("calendar_revisions");
+
                             b1.Property<string>("ContentHash")
                                 .IsRequired()
                                 .HasMaxLength(64)
@@ -488,6 +493,11 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                             b1.Property<DateTimeOffset>("CreatedAtUtc")
                                 .HasColumnType("timestamp with time zone")
                                 .HasColumnName("created_at_utc");
+
+                            b1.Property<string>("Dependencies")
+                                .IsRequired()
+                                .HasColumnType("jsonb")
+                                .HasColumnName("dependencies");
 
                             b1.Property<int>("Sequence")
                                 .HasColumnType("integer")
@@ -537,6 +547,15 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                         .HasMaxLength(128)
                                         .HasColumnType("character varying(128)")
                                         .HasColumnName("resource_key");
+
+                                    b2.Property<string>("SourceRevisions")
+                                        .IsRequired()
+                                        .HasColumnType("jsonb")
+                                        .HasColumnName("source_revisions");
+
+                                    b2.Property<int?>("StandardRevision")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("standard_revision");
 
                                     b2.Property<decimal>("StartMinute")
                                         .HasPrecision(18, 4)

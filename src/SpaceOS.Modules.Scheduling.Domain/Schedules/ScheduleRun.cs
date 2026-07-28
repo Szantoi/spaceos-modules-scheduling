@@ -70,7 +70,9 @@ public sealed class ScheduleRun
     public ScheduleRevision AddProposal(
         Guid revisionId,
         IReadOnlyList<OperationPlan> operations,
-        DateTimeOffset createdAtUtc)
+        IReadOnlyDictionary<string, int> calendarRevisions,
+        DateTimeOffset createdAtUtc,
+        IReadOnlyList<PlannedDependency>? dependencies = null)
     {
         ArgumentNullException.ThrowIfNull(operations);
 
@@ -85,7 +87,10 @@ public sealed class ScheduleRun
                 $"but this run plans project {Project}.", nameof(operations));
         }
 
-        var revision = ScheduleRevision.Create(revisionId, _revisions.Count + 1, operations, createdAtUtc);
+        // Dependencies are optional (a set of independent operations is a valid plan);
+        // the calendar pins are not, because without them the revision is not reproducible.
+        var revision = ScheduleRevision.Create(
+            revisionId, _revisions.Count + 1, operations, dependencies ?? [], calendarRevisions, createdAtUtc);
         _revisions.Add(revision);
         return revision;
     }

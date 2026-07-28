@@ -27,11 +27,21 @@ namespace SpaceOS.Modules.Scheduling.Domain.Schedules;
 /// </remarks>
 public static class RevisionHasher
 {
-    /// <summary>Hashes the operation set of a revision.</summary>
+    /// <summary>Hashes the full content of a revision: operations, edges and calendar pins.</summary>
+    /// <remarks>
+    /// All three are hashed because all three are the plan. Two proposals with identical
+    /// times but different precedence, different norm revisions or a different calendar
+    /// revision are different answers, and a consumer comparing hashes must be told so.
+    /// </remarks>
     /// <returns>Lowercase hex SHA-256 of the canonical representation.</returns>
-    public static string ComputeHash(IEnumerable<OperationPlan> operations)
+    public static string ComputeHash(
+        IEnumerable<OperationPlan> operations,
+        IEnumerable<PlannedDependency> dependencies,
+        IReadOnlyDictionary<string, int> calendarRevisions)
     {
         ArgumentNullException.ThrowIfNull(operations);
+        ArgumentNullException.ThrowIfNull(dependencies);
+        ArgumentNullException.ThrowIfNull(calendarRevisions);
 
         var canonical = new StringBuilder();
         var ordered = operations
@@ -49,6 +59,49 @@ public static class RevisionHasher
             Append(canonical, Format(operation.StartMinute));
             Append(canonical, Format(operation.FinishMinute));
             Append(canonical, operation.AutomaticallyPlanned ? "1" : "0");
+            Append(canonical, operation.StandardRevision?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
+
+            // Provenance is hashed in key order, not insertion order: the same lineage
+            // deserialised from JSON in another order is the same lineage.
+            foreach (var (key, value) in operation.SourceRevisions.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            {
+                Append(canonical, key);
+                Append(canonical, value);
+            }
+
+            canonical.Append('\n');
+        }
+
+        canonical.Append("--edges\n");
+        var orderedEdges = dependencies
+            .OrderBy(edge => edge.PredecessorOperationId, StringComparer.Ordinal)
+            .ThenBy(edge => edge.SuccessorOperationId, StringComparer.Ordinal)
+            .ThenBy(edge => edge.Relation);
+
+        foreach (var edge in orderedEdges)
+        {
+            Append(canonical, edge.PredecessorOperationId);
+            Append(canonical, edge.SuccessorOperationId);
+            Append(canonical, edge.Relation.ToString());
+            Append(canonical, Format(edge.LagMinutes));
+            Append(canonical, edge.EarliestStartMinute is { } bound ? Format(bound) : string.Empty);
+            Append(canonical, edge.StartSource?.ToString() ?? string.Empty);
+
+            // Warnings are sorted, not taken as produced: they are a set of conditions, and
+            // the order a resolver happened to append them in carries no meaning.
+            foreach (var warning in edge.Warnings.Select(warning => warning.ToString()).OrderBy(name => name, StringComparer.Ordinal))
+            {
+                Append(canonical, warning);
+            }
+
+            canonical.Append('\n');
+        }
+
+        canonical.Append("--calendars\n");
+        foreach (var (resourceKey, revision) in calendarRevisions.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+        {
+            Append(canonical, resourceKey);
+            Append(canonical, revision.ToString(CultureInfo.InvariantCulture));
             canonical.Append('\n');
         }
 

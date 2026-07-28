@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using SpaceOS.Modules.Scheduling.Domain.Schedules;
@@ -17,14 +18,25 @@ public sealed class RevisionHasherTests
         EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666")),
         TaskRef.From(Guid.Parse("33333333-4444-4555-8666-777777777777")));
 
-    private static OperationPlan Operation(string id, decimal start = 0m, decimal finish = 60m, string resource = "r1") =>
+    /// <summary>
+    /// The hasher takes a revision's FULL content. These cases vary the operations only, so
+    /// the edges and the calendar pins stay empty — deliberately, not by omission: a case
+    /// that varied two things at once would not prove which one moved the hash.
+    /// </summary>
+    private static string Hash(IReadOnlyList<OperationPlan> operations) =>
+        RevisionHasher.ComputeHash(operations, [], NoPins);
+
+    private static readonly Dictionary<string, int> NoPins = new(StringComparer.Ordinal);
+
+    private static OperationPlan Operation(
+        string id, decimal start = 0m, decimal finish = 60m, string resource = "r1") =>
         new() { OperationId = id, Scope = TestScope, ResourceKey = resource, StartMinute = start, FinishMinute = finish };
 
     [Fact]
     public void Enumeration_order_does_not_change_the_hash()
     {
-        var forward = RevisionHasher.ComputeHash([Operation("a"), Operation("b"), Operation("c")]);
-        var reversed = RevisionHasher.ComputeHash([Operation("c"), Operation("b"), Operation("a")]);
+        var forward = Hash([Operation("a"), Operation("b"), Operation("c")]);
+        var reversed = Hash([Operation("c"), Operation("b"), Operation("a")]);
 
         Assert.Equal(forward, reversed);
     }
@@ -33,8 +45,8 @@ public sealed class RevisionHasherTests
     public void A_changed_minute_changes_the_hash()
     {
         Assert.NotEqual(
-            RevisionHasher.ComputeHash([Operation("a", finish: 60m)]),
-            RevisionHasher.ComputeHash([Operation("a", finish: 61m)]));
+            Hash([Operation("a", finish: 60m)]),
+            Hash([Operation("a", finish: 61m)]));
     }
 
     [Fact]
@@ -50,15 +62,15 @@ public sealed class RevisionHasherTests
                 TestScope.Task),
         };
 
-        Assert.NotEqual(RevisionHasher.ComputeHash([Operation("a")]), RevisionHasher.ComputeHash([moved]));
+        Assert.NotEqual(Hash([Operation("a")]), Hash([moved]));
     }
 
     [Fact]
     public void A_changed_resource_changes_the_hash()
     {
         Assert.NotEqual(
-            RevisionHasher.ComputeHash([Operation("a", resource: "r1")]),
-            RevisionHasher.ComputeHash([Operation("a", resource: "r2")]));
+            Hash([Operation("a", resource: "r1")]),
+            Hash([Operation("a", resource: "r2")]));
     }
 
     [Fact]
@@ -67,8 +79,8 @@ public sealed class RevisionHasherTests
         // 60 and 60.00 are the same instant; a hash change here would look like a plan
         // change to the consumer and trigger a pointless re-review.
         Assert.Equal(
-            RevisionHasher.ComputeHash([Operation("a", finish: 60m)]),
-            RevisionHasher.ComputeHash([Operation("a", finish: 60.0000m)]));
+            Hash([Operation("a", finish: 60m)]),
+            Hash([Operation("a", finish: 60.0000m)]));
     }
 
     [Fact]
@@ -77,8 +89,8 @@ public sealed class RevisionHasherTests
         // Without length prefixes, "a|r1" as an id could reproduce the canonical form of
         // a different operation and collide deliberately.
         Assert.NotEqual(
-            RevisionHasher.ComputeHash([Operation("a", resource: "r1")]),
-            RevisionHasher.ComputeHash([Operation("a|r1", resource: string.Empty)]));
+            Hash([Operation("a", resource: "r1")]),
+            Hash([Operation("a|r1", resource: string.Empty)]));
     }
 
     [Fact]
@@ -87,7 +99,7 @@ public sealed class RevisionHasherTests
         var automatic = Operation("a");
         var manual = automatic with { AutomaticallyPlanned = false };
 
-        Assert.NotEqual(RevisionHasher.ComputeHash([automatic]), RevisionHasher.ComputeHash([manual]));
+        Assert.NotEqual(Hash([automatic]), Hash([manual]));
     }
 
     [Fact]
@@ -98,10 +110,10 @@ public sealed class RevisionHasherTests
         try
         {
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
-            var invariant = RevisionHasher.ComputeHash([Operation("a", finish: 12.5m)]);
+            var invariant = Hash([Operation("a", finish: 12.5m)]);
 
             Thread.CurrentThread.CurrentCulture = new CultureInfo("hu-HU");
-            var hungarian = RevisionHasher.ComputeHash([Operation("a", finish: 12.5m)]);
+            var hungarian = Hash([Operation("a", finish: 12.5m)]);
 
             Assert.Equal(invariant, hungarian);
         }
@@ -114,13 +126,13 @@ public sealed class RevisionHasherTests
     [Fact]
     public void An_empty_revision_still_hashes()
     {
-        Assert.False(string.IsNullOrWhiteSpace(RevisionHasher.ComputeHash([])));
+        Assert.False(string.IsNullOrWhiteSpace(Hash([])));
     }
 
     [Fact]
     public void The_hash_is_lowercase_hex_sha256()
     {
-        var hash = RevisionHasher.ComputeHash([Operation("a")]);
+        var hash = Hash([Operation("a")]);
 
         Assert.Equal(64, hash.Length);
         Assert.Matches("^[0-9a-f]{64}$", hash);

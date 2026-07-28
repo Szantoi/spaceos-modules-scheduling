@@ -54,13 +54,20 @@ public sealed record ScheduleRunSummaryDto(
 /// <param name="StartMinute">Start on the normalised minute timeline.</param>
 /// <param name="FinishMinute">Finish on the normalised minute timeline.</param>
 /// <param name="AutomaticallyPlanned">False when the operation was not placed automatically.</param>
+/// <param name="StandardRevision">Revision of the norm the times came from; null when none was used.</param>
+/// <param name="SourceRevisions">
+/// The consumer's own provenance, reflected back byte-for-byte. The platform stores these
+/// values and never resolves them (PLAN-03 M3 contract input).
+/// </param>
 public sealed record OperationPlanDto(
     string OperationId,
     WorkScopeDto Scope,
     string ResourceKey,
     decimal StartMinute,
     decimal FinishMinute,
-    bool AutomaticallyPlanned);
+    bool AutomaticallyPlanned,
+    int? StandardRevision,
+    IReadOnlyDictionary<string, string> SourceRevisions);
 
 /// <summary>One dependency edge with the attribution the planner needs.</summary>
 /// <param name="PredecessorOperationId">Predecessor operation.</param>
@@ -114,6 +121,71 @@ public sealed record ResourceCalendarDto(
     string CapacityPolicy,
     int Revision,
     bool IsApproved);
+
+/// <summary>A daily time range on the resource's own local clock, in minutes from midnight.</summary>
+/// <param name="StartMinuteOfDay">Inclusive start, 0-1440.</param>
+/// <param name="EndMinuteOfDay">Exclusive end, 0-1440.</param>
+public sealed record DayRangeDto(int StartMinuteOfDay, int EndMinuteOfDay);
+
+/// <summary>One weekday's recurring shift with its breaks.</summary>
+/// <param name="IsoWeekday">ISO-8601 weekday, Monday = 1.</param>
+/// <param name="Shift">The shift itself.</param>
+/// <param name="Breaks">Non-working ranges inside the shift.</param>
+public sealed record RecurringShiftDto(int IsoWeekday, DayRangeDto Shift, IReadOnlyList<DayRangeDto> Breaks);
+
+/// <summary>A dated deviation from the recurring pattern.</summary>
+/// <param name="Date">Local date, ISO-8601 (yyyy-MM-dd).</param>
+/// <param name="Kind">closure, maintenance or overtime.</param>
+/// <param name="Span">Affected range; null means the whole day.</param>
+/// <param name="Reason">Optional justification shown to planners.</param>
+public sealed record CalendarExceptionDto(string Date, string Kind, DayRangeDto? Span, string? Reason);
+
+/// <summary>A calendar revision in full: the pattern a plan was computed against.</summary>
+/// <param name="ResourceKey">Stable resource key.</param>
+/// <param name="Revision">Calendar revision number.</param>
+/// <param name="TimeZoneId">IANA time zone identifier.</param>
+/// <param name="Capacity">Parallel capacity.</param>
+/// <param name="CapacityPolicy">integer or fractional_fte.</param>
+/// <param name="IsApproved">Only an approved revision may be scheduled against.</param>
+/// <param name="EffectiveFromUtc">ISO-8601 UTC instant the revision takes effect.</param>
+/// <param name="EffectiveToUtc">ISO-8601 UTC instant it was closed at, or null while open.</param>
+/// <param name="Shifts">The recurring weekly pattern.</param>
+/// <param name="Exceptions">Dated deviations.</param>
+public sealed record ResourceCalendarDetailDto(
+    string ResourceKey,
+    int Revision,
+    string TimeZoneId,
+    decimal Capacity,
+    string CapacityPolicy,
+    bool IsApproved,
+    string EffectiveFromUtc,
+    string? EffectiveToUtc,
+    IReadOnlyList<RecurringShiftDto> Shifts,
+    IReadOnlyList<CalendarExceptionDto> Exceptions);
+
+/// <summary>A period where committed demand exceeds the resource's capacity (R5).</summary>
+/// <param name="StartUtc">ISO-8601 UTC start of the overload.</param>
+/// <param name="EndUtc">ISO-8601 UTC exclusive end.</param>
+/// <param name="PeakDemand">Highest simultaneous demand inside the period.</param>
+/// <param name="Capacity">Capacity it was measured against.</param>
+/// <param name="PeakExcess">PeakDemand minus Capacity — how bad it gets at worst.</param>
+public sealed record OverloadSpanDto(
+    string StartUtc,
+    string EndUtc,
+    decimal PeakDemand,
+    decimal Capacity,
+    decimal PeakExcess);
+
+/// <summary>A registered operation standard and the state of its revision chain.</summary>
+/// <param name="SourceTaskKey">Stable key from the source catalogue.</param>
+/// <param name="Qualifiers">The qualifier set that identifies this standard.</param>
+/// <param name="AcceptedRevision">Revision currently usable for planning, or null when none is.</param>
+/// <param name="RevisionCount">How many revisions the chain holds.</param>
+public sealed record OperationStandardSummaryDto(
+    string SourceTaskKey,
+    IReadOnlyDictionary<string, string> Qualifiers,
+    int? AcceptedRevision,
+    int RevisionCount);
 
 /// <summary>A versioned norm time, including why a revision was quarantined.</summary>
 /// <param name="SourceTaskKey">Stable key from the source catalogue.</param>

@@ -148,8 +148,9 @@ public sealed class CapacityReservation
             throw new ArgumentException("A hold needs a positive time to live.", nameof(timeToLive));
         }
 
+        // Isolated(): the caller may hold one scope for many reservations -- see KernelWorkScope.
         return new CapacityReservation(
-            id, tenantId, resourceKey, scope, startUtc, endUtc, quantity,
+            id, tenantId, resourceKey, scope.Isolated(), startUtc, endUtc, quantity,
             createdAtUtc, createdAtUtc + timeToLive);
     }
 

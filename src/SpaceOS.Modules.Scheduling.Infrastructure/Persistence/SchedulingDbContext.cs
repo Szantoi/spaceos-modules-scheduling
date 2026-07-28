@@ -120,6 +120,38 @@ public sealed class SchedulingDbContext : DbContext
                     .IsUnique()
                     .HasDatabaseName("ux_schedule_revisions_run_sequence");
 
+                // Edges and calendar pins travel as value-converted jsonb SCALARS, not as
+                // EF's owned-entity-to-json mapping. A revision is itself an owned entity in
+                // its own table, and EF 8 refuses a json-mapped owned collection inside one --
+                // the same wall the shift pattern hit in M2. A converted scalar has no such
+                // restriction and keeps both blocks inside the row the revision RLS covers.
+                revision.Property(entity => entity.Dependencies)
+                    .HasColumnName("dependencies")
+                    .HasColumnType("jsonb")
+                    .HasConversion(
+                        value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                        text => (IReadOnlyList<PlannedDependency>)JsonSerializer.Deserialize<List<PlannedDependency>>(
+                            text, (JsonSerializerOptions?)null)!,
+                        new ValueComparer<IReadOnlyList<PlannedDependency>>(
+                            (left, right) => left!.SequenceEqual(right!),
+                            value => value.Aggregate(0, (hash, edge) => HashCode.Combine(hash, edge)),
+                            value => (IReadOnlyList<PlannedDependency>)value.ToList()))
+                    .IsRequired();
+
+                revision.Property(entity => entity.CalendarRevisions)
+                    .HasColumnName("calendar_revisions")
+                    .HasColumnType("jsonb")
+                    .HasConversion(
+                        value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                        text => (IReadOnlyDictionary<string, int>)JsonSerializer.Deserialize<Dictionary<string, int>>(
+                            text, (JsonSerializerOptions?)null)!,
+                        new ValueComparer<IReadOnlyDictionary<string, int>>(
+                            (left, right) => left!.Count == right!.Count && !left.Except(right).Any(),
+                            value => value.OrderBy(pin => pin.Key, StringComparer.Ordinal)
+                                .Aggregate(0, (hash, pin) => HashCode.Combine(hash, pin.Key, pin.Value)),
+                            value => (IReadOnlyDictionary<string, int>)new Dictionary<string, int>(value, StringComparer.Ordinal)))
+                    .IsRequired();
+
                 revision.OwnsMany(entity => entity.Operations, operation =>
                 {
                     operation.ToTable("operation_plans");
@@ -131,6 +163,12 @@ public sealed class SchedulingDbContext : DbContext
                     // never joined to: the module records identity, it does not resolve it.
                     // The project is denormalised onto the operation (the run carries it too)
                     // so a row is self-contained for reads and for materialisation.
+                    // OwnsOne, with the sharing hazard handled in the DOMAIN (see
+                    // KernelWorkScope.Isolated): an owned entity has identity, so two rows
+                    // holding the SAME scope instance make EF attach it to one owner and write
+                    // NULLs for the other, silently, at insert time. EF 8 complex types would
+                    // model it as a true value -- but they are not available on an owned type,
+                    // which an operation is.
                     operation.OwnsOne(entity => entity.Scope, scope =>
                     {
                         scope.Property(value => value.Project)
@@ -158,11 +196,33 @@ public sealed class SchedulingDbContext : DbContext
                     operation.Property(entity => entity.StartMinute).HasColumnName("start_minute").HasPrecision(18, 4).IsRequired();
                     operation.Property(entity => entity.FinishMinute).HasColumnName("finish_minute").HasPrecision(18, 4).IsRequired();
                     operation.Property(entity => entity.AutomaticallyPlanned).HasColumnName("automatically_planned").IsRequired();
+                    operation.Property(entity => entity.StandardRevision).HasColumnName("standard_revision");
+
+                    // Opaque upstream lineage, stored verbatim and never interpreted here
+                    // (PLAN-03 M3 contract input). jsonb rather than text so an operator can
+                    // still inspect it during an incident without parsing by eye.
+                    operation.Property(entity => entity.SourceRevisions)
+                        .HasColumnName("source_revisions")
+                        .HasColumnType("jsonb")
+                        .HasConversion(
+                            value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                            text => (IReadOnlyDictionary<string, string>)JsonSerializer.Deserialize<Dictionary<string, string>>(
+                                text, (JsonSerializerOptions?)null)!,
+                            new ValueComparer<IReadOnlyDictionary<string, string>>(
+                                (left, right) => left!.Count == right!.Count && !left.Except(right).Any(),
+                                value => value.OrderBy(entry => entry.Key, StringComparer.Ordinal)
+                                    .Aggregate(0, (hash, entry) => HashCode.Combine(hash, entry.Key, entry.Value)),
+                                value => (IReadOnlyDictionary<string, string>)new Dictionary<string, string>(value, StringComparer.Ordinal)))
+                        .IsRequired();
 
                     // Same rule as the index above: the shadow FK is named "revision_id",
                     // but the operation id is the CLR property OperationId.
                     operation.HasKey("revision_id", nameof(OperationPlan.OperationId));
                 });
+
+                // Field access, same reason as ScheduleRun.Revisions: EF must populate the
+                // aggregate's own list rather than write the read-only property.
+                revision.Navigation(entity => entity.Operations).UsePropertyAccessMode(PropertyAccessMode.Field);
             });
 
             run.Navigation(entity => entity.Revisions).UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -246,6 +306,8 @@ public sealed class SchedulingDbContext : DbContext
             reservation.Property(entity => entity.ExpiresAtUtc).HasColumnName("expires_at_utc").IsRequired();
             reservation.Property(entity => entity.State).HasColumnName("state").HasConversion<string>().HasMaxLength(32).IsRequired();
 
+            // Same hazard as on the operation, same domain-side answer: two reservations for
+            // one Kernel task must not share a scope instance.
             reservation.OwnsOne(entity => entity.Scope, scope =>
             {
                 scope.Property(value => value.Project).HasColumnName("project_ref")

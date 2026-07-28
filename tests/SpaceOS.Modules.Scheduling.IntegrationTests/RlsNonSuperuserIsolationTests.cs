@@ -160,16 +160,17 @@ public sealed class RlsNonSuperuserIsolationTests
 
         await ExecuteAsAdminAsync(
             """
-            INSERT INTO scheduling."schedule_revisions" ("id","run_id","sequence","content_hash","state","created_at_utc")
-            VALUES (@id, @run, 1, 'deadbeef', 'Proposal', now());
+            INSERT INTO scheduling."schedule_revisions"
+                ("id","run_id","sequence","content_hash","state","created_at_utc","dependencies","calendar_revisions")
+            VALUES (@id, @run, 1, 'deadbeef', 'Proposal', now(), '[]'::jsonb, '{}'::jsonb);
             """,
             ("id", revisionId), ("run", runId));
 
         await ExecuteAsAdminAsync(
             """
             INSERT INTO scheduling."operation_plans"
-                ("revision_id","operation_id","project_ref","epic_ref","task_ref","resource_key","start_minute","finish_minute","automatically_planned")
-            VALUES (@revision, 'op-1', @project, @epic, @task, 'resource-1', 0, 60, true);
+                ("revision_id","operation_id","project_ref","epic_ref","task_ref","resource_key","start_minute","finish_minute","automatically_planned","source_revisions")
+            VALUES (@revision, 'op-1', @project, @epic, @task, 'resource-1', 0, 60, true, '{}'::jsonb);
             """,
             ("revision", revisionId), ("project", Guid.NewGuid()), ("epic", Guid.NewGuid()), ("task", Guid.NewGuid()));
 

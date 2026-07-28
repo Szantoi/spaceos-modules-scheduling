@@ -1,8 +1,9 @@
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
-using SpaceOS.Modules.Scheduling.Infrastructure.Persistence;
 
 #nullable disable
+
+using SpaceOS.Modules.Scheduling.Infrastructure.Persistence;
 
 namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
 {
@@ -189,6 +190,8 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     sequence = table.Column<int>(type: "integer", nullable: false),
+                    dependencies = table.Column<string>(type: "jsonb", nullable: false),
+                    calendar_revisions = table.Column<string>(type: "jsonb", nullable: false),
                     content_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     state = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -219,7 +222,9 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                     resource_key = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     start_minute = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
                     finish_minute = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
-                    automatically_planned = table.Column<bool>(type: "boolean", nullable: false)
+                    automatically_planned = table.Column<bool>(type: "boolean", nullable: false),
+                    standard_revision = table.Column<int>(type: "integer", nullable: true),
+                    source_revisions = table.Column<string>(type: "jsonb", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -303,7 +308,8 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                 column: "standard_id");
 
             // RLS belongs to the SCHEMA, not to a deploy step. Enable() is CALLED, not pasted,
-            // so this migration and the RLS proof read from one source.
+            // so this migration and the RLS proof read from one source. Regenerating the
+            // migration DROPS this block -- it was lost once already; the proof caught it.
             foreach (var statement in SchedulingRlsSql.Enable())
             {
                 migrationBuilder.Sql(statement, suppressTransaction: true);

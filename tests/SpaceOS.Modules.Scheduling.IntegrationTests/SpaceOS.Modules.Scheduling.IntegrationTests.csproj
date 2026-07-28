@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="SpaceOS.Modules.Hosting.RlsFixtures" Version="0.1.0-preview.1" />
     <PackageReference Include="xunit" Version="2.5.3" />
@@ -22,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\host\SpaceOS.Modules.Scheduling.Host\SpaceOS.Modules.Scheduling.Host.csproj" />
     <ProjectReference Include="..\..\src\SpaceOS.Modules.Scheduling.Infrastructure\SpaceOS.Modules.Scheduling.Infrastructure.csproj" />
   </ItemGroup>
 

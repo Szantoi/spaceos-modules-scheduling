@@ -60,6 +60,24 @@ public sealed record KernelWorkScope
         return new KernelWorkScope(project, epic, task);
     }
 
+    /// <summary>
+    /// Returns a copy that belongs to exactly one row.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A work scope is a VALUE — two operations on the same Kernel task hold equal scopes,
+    /// and callers naturally pass the same instance to both. The persistence layer maps it as
+    /// an OWNED ENTITY though (EF 8 complex types are unavailable on an owned type, which an
+    /// operation is), and an owned entity has identity: a shared instance is attached to one
+    /// owner and the other row is written with NULL references. Silently, at insert time.
+    /// </para>
+    /// <para>
+    /// So every aggregate isolates the scope on the way in. Equality is unaffected — this is
+    /// a record — which is exactly why the fix is invisible to the domain and to the hash.
+    /// </para>
+    /// </remarks>
+    internal KernelWorkScope Isolated() => this with { };
+
     /// <inheritdoc />
     public override string ToString() => $"{Project}/{Epic}/{Task}";
 }
