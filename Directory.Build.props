@@ -11,6 +11,13 @@
 
     <NeutralLanguage>en</NeutralLanguage>
     <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- ADR-070 supply-chain requirement: every restore is pinned by a committed lockfile.
+         Without it a floating transitive dependency can change under a green CI, and for a
+         module that will ship native binaries (OR-Tools) the bundle digest would move with
+         it. CI restores in locked mode, so an unintended version bump fails the build
+         instead of landing silently. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <!-- Public API of the shipped library must be documented; test methods are named as
