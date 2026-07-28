@@ -7,6 +7,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using SpaceOS.Modules.Scheduling.Domain.Dependencies;
+using SpaceOS.Modules.Scheduling.Host.Projections;
 using SpaceOS.Modules.Scheduling.Host.Contracts;
 using Xunit;
 using YamlDotNet.Serialization;
@@ -223,6 +225,105 @@ public sealed class OpenApiContractTests : IClassFixture<SchedulingHostFactory>
 
         Assert.Equal(declared.OrderBy(name => name, StringComparer.Ordinal),
             bound.OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Every_warning_code_is_declared_in_the_specification()
+    {
+        // The wire code is agreed with Doorstar, not derived from the C# member name. This
+        // pins the two sides of that agreement inside our own build.
+        var declared = Document.Value
+            .GetProperty("components").GetProperty("schemas")
+            .GetProperty("DependencyEdge").GetProperty("properties")
+            .GetProperty("warnings").GetProperty("items").GetProperty("enum")
+            .EnumerateArray().Select(value => value.GetString()!).ToHashSet(StringComparer.Ordinal);
+
+        var produced = Enum.GetValues<DependencyWarning>()
+            .Select(SchedulingProjections.WarningCode)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(
+            produced.OrderBy(code => code, StringComparer.Ordinal),
+            declared.OrderBy(code => code, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void The_wire_warning_codes_match_the_Doorstar_fixture()
+    {
+        // THE gap that let the drift happen: the compatibility gate carried its own copy of
+        // the mapping, so the fixture and the published wire could disagree and both stay
+        // green. Now the fixture — the federation-agreed artefact — is compared against what
+        // the API actually emits.
+        var fixturePath = RepoFile(Path.Combine(
+            "tests", "SpaceOS.Modules.Scheduling.Domain.Tests", "Fixtures",
+            "doorstar-planning-input-pack.v2.json"));
+        using var fixture = JsonDocument.Parse(File.ReadAllText(fixturePath));
+
+        var expected = Warnings(fixture.RootElement).ToHashSet(StringComparer.Ordinal);
+        Assert.NotEmpty(expected);
+
+        var produced = Enum.GetValues<DependencyWarning>()
+            .Select(SchedulingProjections.WarningCode)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var code in expected)
+        {
+            Assert.Contains(code, produced);
+        }
+    }
+
+    /// <summary>Every string under any "warnings" array, at any depth of the pack.</summary>
+    private static IEnumerable<string> Warnings(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (property.NameEquals("warnings") && property.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var warning in property.Value.EnumerateArray())
+                        {
+                            if (warning.ValueKind == JsonValueKind.String)
+                            {
+                                yield return warning.GetString()!;
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    foreach (var nested in Warnings(property.Value))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                {
+                    foreach (var nested in Warnings(item))
+                    {
+                        yield return nested;
+                    }
+                }
+
+                break;
+        }
+    }
+
+    private static string RepoFile(string relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, relativePath)))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.True(directory is not null, $"{relativePath} was not found above the test binary.");
+        return Path.Combine(directory!.FullName, relativePath);
     }
 
     private static string Describe(IEnumerable<(string Method, string Path)> routes) =>

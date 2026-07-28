@@ -57,6 +57,29 @@ public static class SchedulingProjections
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Warning codes are FEDERATION-AGREED strings, not derived from the enum name.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The agreed code is <c>partial_release_delays_fs_start</c> — it names the finish-to-start
+    /// bound that the partial release pushed. The generic snake_case converter produced
+    /// <c>partial_release_delays_start</c> from the C# member, silently dropping the <c>fs</c>,
+    /// and the two only differed on the wire: the Doorstar gate carried its own copy of the
+    /// mapping, so nothing compared them. After delivery that would have been a breaking change.
+    /// </para>
+    /// <para>
+    /// Hence an explicit switch with no default: a warning added later cannot reach a consumer
+    /// under a name nobody agreed to, because the code will not compile until someone chooses
+    /// the string deliberately.
+    /// </para>
+    /// </remarks>
+    public static string WarningCode(DependencyWarning warning) => warning switch
+    {
+        DependencyWarning.PartialReleaseDelaysStart => "partial_release_delays_fs_start",
+        _ => throw new ArgumentOutOfRangeException(nameof(warning), warning, "Unmapped dependency warning."),
+    };
+
     /// <summary>Relation codes are the planning-standard abbreviations, not enum names.</summary>
     public static string RelationCode(DependencyType relation) => relation switch
     {
@@ -98,7 +121,7 @@ public static class SchedulingProjections
         edge.LagMinutes,
         edge.EarliestStartMinute,
         edge.StartSource is { } source ? Code(source) : null,
-        [.. edge.Warnings.Select(warning => Code(warning))]);
+        [.. edge.Warnings.Select(WarningCode)]);
 
     /// <summary>Projects a revision as the Doorstar proposal payload.</summary>
     public static ProposalDto ToProposal(this ScheduleRevision revision, Guid runId) => new(

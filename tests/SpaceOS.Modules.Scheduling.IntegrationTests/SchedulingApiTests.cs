@@ -207,7 +207,7 @@ public sealed class SchedulingApiTests
         Assert.Equal("FS", edge.GetProperty("relationCode").GetString());
         Assert.Equal("partial_release", edge.GetProperty("startSource").GetString());
         Assert.Equal(
-            "partial_release_delays_start",
+            "partial_release_delays_fs_start",
             Assert.Single(edge.GetProperty("warnings").EnumerateArray().ToArray()).GetString());
 
         // The calendar pins: without them the plan could not be recomputed later.

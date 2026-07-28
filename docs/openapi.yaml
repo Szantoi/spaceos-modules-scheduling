@@ -333,7 +333,7 @@ components:
           type: array
           items:
             type: string
-            enum: [partial_release_delays_start]
+            enum: [partial_release_delays_fs_start]
       required:
         - predecessorOperationId
         - successorOperationId
