@@ -24,7 +24,13 @@ jobs:
       - name: Industry-vocabulary guard
         run: bash build/check-core-vocabulary.sh
 
+      # GitHub Packages requires authentication even for PUBLIC packages, and the automatic
+      # GITHUB_TOKEN cannot read another repository's packages -- hence an explicit secret.
+      # nuget.config reads it from this environment variable; packageSourceMapping keeps the
+      # private feed limited to SpaceOS.* so nothing else can be substituted from it.
       - name: Restore
+        env:
+          SPACEOS_PACKAGES_TOKEN: ${{ secrets.SPACEOS_PACKAGES_TOKEN }}
         run: dotnet restore
 
       - name: Build
