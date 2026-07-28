@@ -141,6 +141,88 @@ public sealed class RlsNonSuperuserIsolationTests
         Assert.Equal("42501", exception.SqlState); // insufficient_privilege — the policy refused
     }
 
+    // (g) M3: the two-hop child of a standard, at DATA level -- catalogue state proves the
+    // policy exists, this proves it actually hides rows.
+    [Fact]
+    public async Task Standard_revisions_follow_their_standard_tenant()
+    {
+        var (standardA, revisionA) = await SeedStandardWithRevisionAsync(_fixture.TenantA);
+        var (_, revisionB) = await SeedStandardWithRevisionAsync(_fixture.TenantB);
+
+        await using (var asTenantA = await _fixture.OpenAsTenantAsync(_fixture.TenantA))
+        {
+            var visible = await ReadIdsAsync(asTenantA, """SELECT "id" FROM scheduling."standard_revisions";""");
+
+            Assert.Contains(revisionA, visible);
+            Assert.DoesNotContain(revisionB, visible);
+        }
+
+        // And with no tenant set at all: nothing, rather than everything.
+        await using var withoutTenant = await _fixture.OpenAsTenantAsync(null);
+        Assert.Empty(await ReadIdsAsync(withoutTenant, """SELECT "id" FROM scheduling."standard_revisions";"""));
+        Assert.Empty(await ReadIdsAsync(withoutTenant, $"""SELECT "id" FROM scheduling."operation_standards" WHERE "id" = '{standardA}';"""));
+    }
+
+    // (h) M3: the audit trail is append-only in the DATABASE, not only in the aggregate.
+    [Fact]
+    public async Task The_audit_trail_refuses_updates_and_deletes()
+    {
+        // The domain type has no mutators, so EF cannot rewrite history. This is about the
+        // other path: a psql session, or code that bypasses the model entirely. An audit
+        // trail that a direct UPDATE can rewrite is not evidence of anything.
+        var entryId = Guid.NewGuid();
+        await ExecuteAsAdminAsync(
+            """
+            INSERT INTO scheduling."audit_entries"
+                ("id","tenant_id","occurred_at_utc","actor","action","subject_id")
+            VALUES (@id, @tenant, now(), 'integration-test', @action, 'run-1');
+            """,
+            ("id", entryId), ("tenant", _fixture.TenantA), ("action", "RevisionPublished"));
+
+        await using var asTenantA = await _fixture.OpenAsTenantAsync(_fixture.TenantA);
+
+        var update = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+            asTenantA, $"""UPDATE scheduling."audit_entries" SET "actor" = 'rewritten' WHERE "id" = '{entryId}';"""));
+        Assert.Equal("42501", update.SqlState);
+
+        var delete = await Assert.ThrowsAsync<PostgresException>(() => ExecuteAsync(
+            asTenantA, $"""DELETE FROM scheduling."audit_entries" WHERE "id" = '{entryId}';"""));
+        Assert.Equal("42501", delete.SqlState);
+
+        // The row is still there, unchanged: the refusal is not a partial write.
+        var survivors = await ReadIdsAsync(asTenantA, $"""SELECT "id" FROM scheduling."audit_entries" WHERE "id" = '{entryId}' AND "actor" = 'integration-test';""");
+        Assert.Single(survivors);
+    }
+
+    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql)
+    {
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task<(Guid StandardId, Guid RevisionId)> SeedStandardWithRevisionAsync(Guid tenantId)
+    {
+        var standardId = Guid.NewGuid();
+        var revisionId = Guid.NewGuid();
+
+        await ExecuteAsAdminAsync(
+            """
+            INSERT INTO scheduling."operation_standards" ("id","tenant_id","source_task_key","qualifiers")
+            VALUES (@id, @tenant, 'op.probe', '{}'::jsonb);
+            """,
+            ("id", standardId), ("tenant", tenantId));
+
+        await ExecuteAsAdminAsync(
+            """
+            INSERT INTO scheduling."standard_revisions"
+                ("id","standard_id","revision","imported_at_utc","state","quarantine_reasons")
+            VALUES (@id, @standard, 1, now(), 'Accepted', '{}'::integer[]);
+            """,
+            ("id", revisionId), ("standard", standardId));
+
+        return (standardId, revisionId);
+    }
+
     private async Task<Guid> SeedRunAsync(Guid tenantId)
     {
         var runId = Guid.NewGuid();

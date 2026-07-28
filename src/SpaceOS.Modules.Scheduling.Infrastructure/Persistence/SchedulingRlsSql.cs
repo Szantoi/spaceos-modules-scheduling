@@ -60,6 +60,47 @@ public static class SchedulingRlsSql
         AuditTable, OutboxTable,
     ];
 
+    /// <summary>Name of the trigger function that makes the audit trail append-only.</summary>
+    public const string AppendOnlyFunction = "scheduling_refuse_audit_mutation";
+
+    /// <summary>
+    /// Makes the audit trail append-only in the DATABASE, not merely in the aggregate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="SpaceOS.Modules.Scheduling.Domain.Audit.SchedulingAuditEntry"/> has no
+    /// mutators at all, so the application cannot rewrite history through the model. That is
+    /// not the threat this addresses: an audit trail is only evidence if it also resists a
+    /// direct <c>UPDATE</c> from a psql session or from code that bypasses EF.
+    /// </para>
+    /// <para>
+    /// A TRIGGER rather than <c>REVOKE UPDATE, DELETE</c>: grants are re-applied by whatever
+    /// role provisions the database (the shared RLS fixture grants ALL on every table, and a
+    /// deploy script usually does the same), which would silently undo a revoke. A trigger is
+    /// part of the schema and survives every regrant.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> EnableAuditAppendOnly(string schema = SchedulingDbContext.SchemaName) =>
+    [
+        $"""
+        CREATE OR REPLACE FUNCTION {schema}.{AppendOnlyFunction}()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+            RAISE EXCEPTION 'The scheduling audit trail is append-only: % is refused.', TG_OP
+                USING ERRCODE = 'insufficient_privilege';
+        END;
+        $function$;
+        """,
+        $"""
+        DROP TRIGGER IF EXISTS "{AuditTable}_append_only" ON {schema}."{AuditTable}";
+        CREATE TRIGGER "{AuditTable}_append_only"
+            BEFORE UPDATE OR DELETE ON {schema}."{AuditTable}"
+            FOR EACH ROW EXECUTE FUNCTION {schema}.{AppendOnlyFunction}();
+        """,
+    ];
+
     /// <summary>Statements that remove the policies again (migration Down counterpart).</summary>
     /// <remarks>
     /// Derived from <see cref="AllTables"/> rather than hand-listed, so a table added to the
@@ -67,6 +108,8 @@ public static class SchedulingRlsSql
     /// </remarks>
     public static IReadOnlyList<string> Disable(string schema = SchedulingDbContext.SchemaName) =>
     [
+        $"DROP TRIGGER IF EXISTS \"{AuditTable}_append_only\" ON {schema}.\"{AuditTable}\";",
+        $"DROP FUNCTION IF EXISTS {schema}.{AppendOnlyFunction}();",
         .. AllTables.Select(table => RlsMigrationSql.DisableTenantRls(schema, table)),
         RlsMigrationSql.DropSetTenantContextFunction(schema),
     ];

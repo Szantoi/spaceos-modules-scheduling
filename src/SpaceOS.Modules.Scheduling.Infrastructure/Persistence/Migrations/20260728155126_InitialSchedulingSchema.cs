@@ -314,6 +314,13 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
             {
                 migrationBuilder.Sql(statement, suppressTransaction: true);
             }
+
+            // The audit trail is append-only at the DATABASE level too -- see the helper for
+            // why a trigger and not a REVOKE.
+            foreach (var statement in SchedulingRlsSql.EnableAuditAppendOnly())
+            {
+                migrationBuilder.Sql(statement, suppressTransaction: true);
+            }
         }
 
         /// <inheritdoc />

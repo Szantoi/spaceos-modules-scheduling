@@ -44,3 +44,23 @@ jobs:
       # rather than quietly redefining the contract.
       - name: Test (includes the pinned Doorstar compatibility gate)
         run: dotnet test --no-build --configuration Release --verbosity normal
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # ADR-069 §6 generated-client gate: Doorstar builds its client from docs/openapi.yaml,
+      # so a spec this generator cannot process is a SPEC BUG and must fail the build here --
+      # not in the consumer's pipeline. The .NET suite already proved the spec matches the
+      # routes and the DTO shapes; this proves it is machine-consumable.
+      - name: Generate the TypeScript client from the contract
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/scheduling-client.ts"
+          npx --yes openapi-typescript@7 docs/openapi.yaml -o "$out"
+          # A generator can emit an empty-but-valid file; check the operations actually
+          # arrived, otherwise the gate would pass on a spec that produced nothing usable.
+          for symbol in listScheduleRuns getProposal getResourceOverload Proposal OperationPlan; do
+            grep -q "$symbol" "$out" || { echo "Generated client is missing '$symbol'."; exit 1; }
+          done
+          echo "Generated client: $(wc -l < "$out") lines."
