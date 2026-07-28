@@ -40,7 +40,7 @@
         "type": "Direct",
         "requested": "[0.1.0-preview.1, )",
         "resolved": "0.1.0-preview.1",
-        "contentHash": "cWWLS18BQPkwevDqL4zOaC5ZYQVPomQahP6I/scjXMPhk172zFc5GBNVn7NsVzfouJTvSobaMEsd3U7dzsobHg==",
+        "contentHash": "w3PCwfaou1aZT4m+lOkDXQ8jRkTauw8Us6aaa9RTWooEZPQZcOV1ZDm+ZfaTWB5DmwbVDsfT8xxj4LVVK8Ih9A==",
         "dependencies": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.29",
           "Microsoft.EntityFrameworkCore.Relational": "8.0.7"
