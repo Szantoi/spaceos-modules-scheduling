@@ -7,6 +7,13 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+
+    <!-- Deliberately NOT invariant, unlike the library: the revision hash must stay
+         culture-independent for any consuming host, including one that runs with a real
+         culture such as hu-HU (comma decimal separator). Under the library's own
+         InvariantGlobalization the test could not even construct that culture, so it
+         would prove nothing. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
