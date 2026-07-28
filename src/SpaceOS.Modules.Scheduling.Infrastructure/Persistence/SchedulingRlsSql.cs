@@ -24,8 +24,38 @@ public static class SchedulingRlsSql
     /// <summary>Operations: tenant follows the revision's run — two hops.</summary>
     public const string OperationsTable = "operation_plans";
 
+    /// <summary>Resource calendars: revisioned, tenant-scoped directly.</summary>
+    public const string CalendarsTable = "resource_calendar_revisions";
+
+    /// <summary>Capacity reservations: tenant-scoped directly.</summary>
+    public const string ReservationsTable = "capacity_reservations";
+
+    /// <summary>Operation standards: tenant-scoped directly.</summary>
+    public const string StandardsTable = "operation_standards";
+
+    /// <summary>Standard revisions: tenant follows the parent standard.</summary>
+    public const string StandardRevisionsTable = "standard_revisions";
+
+    /// <summary>Append-only audit trail: tenant-scoped directly.</summary>
+    public const string AuditTable = "audit_entries";
+
+    /// <summary>Transactional outbox: tenant-scoped directly.</summary>
+    public const string OutboxTable = "outbox_messages";
+
     /// <summary>Every table the proof suite must find FORCE-protected.</summary>
-    public static IReadOnlyList<string> AllTables => [RunsTable, RevisionsTable, OperationsTable];
+    /// <remarks>
+    /// The model/RLS sync guard asserts this list against the EF model in both directions, so
+    /// a table added to the schema without a policy fails the build rather than shipping
+    /// readable across tenants.
+    /// </remarks>
+    public static IReadOnlyList<string> AllTables =>
+    [
+        RunsTable, RevisionsTable, OperationsTable,
+        CalendarsTable,
+        ReservationsTable,
+        StandardsTable, StandardRevisionsTable,
+        AuditTable, OutboxTable,
+    ];
 
     /// <summary>Statements that remove the policies again (migration Down counterpart).</summary>
     /// <remarks>
@@ -42,8 +72,19 @@ public static class SchedulingRlsSql
     public static IReadOnlyList<string> Enable(string schema = SchedulingDbContext.SchemaName) =>
     [
         RlsMigrationSql.CreateSetTenantContextFunction(schema),
+
+        // Roots carry the tenant column directly.
         RlsMigrationSql.EnableTenantRls(schema, RunsTable, "tenant_id"),
+        RlsMigrationSql.EnableTenantRls(schema, CalendarsTable, "tenant_id"),
+        RlsMigrationSql.EnableTenantRls(schema, ReservationsTable, "tenant_id"),
+        RlsMigrationSql.EnableTenantRls(schema, StandardsTable, "tenant_id"),
+        RlsMigrationSql.EnableTenantRls(schema, AuditTable, "tenant_id"),
+        RlsMigrationSql.EnableTenantRls(schema, OutboxTable, "tenant_id"),
+
+        // Children reach their tenant through the parent row.
         RlsMigrationSql.EnableChildTenantRls(schema, RevisionsTable, "run_id", RunsTable, "id", "tenant_id"),
+        RlsMigrationSql.EnableChildTenantRls(schema, StandardRevisionsTable, "standard_id", StandardsTable, "id", "tenant_id"),
+
         // Two levels deep, so the shared single-hop helper does not fit: operations reach
         // their tenant through the revision. Written in the same shape as the helper output
         // (ENABLE + FORCE + one combined USING/WITH CHECK policy) so the proof suite and a

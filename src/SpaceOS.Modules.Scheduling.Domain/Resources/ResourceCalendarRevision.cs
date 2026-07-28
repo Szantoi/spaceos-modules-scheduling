@@ -10,8 +10,10 @@ namespace SpaceOS.Modules.Scheduling.Domain.Resources;
 /// <remarks>
 /// Minutes-since-midnight rather than a time type: the domain stays free of NodaTime
 /// (ADR-070 D2), and the calendar layer converts these to instants with the tenant's zone.
+/// A record CLASS, not a struct: the persistence layer maps it as an owned type, which
+/// Entity Framework supports for reference types only. Structural equality is unchanged.
 /// </remarks>
-public readonly record struct DayRange(int StartMinuteOfDay, int EndMinuteOfDay)
+public sealed record DayRange(int StartMinuteOfDay, int EndMinuteOfDay)
 {
     /// <summary>Length in minutes, ignoring calendar effects.</summary>
     public int NominalMinutes => EndMinuteOfDay - StartMinuteOfDay;
@@ -31,6 +33,17 @@ public readonly record struct DayRange(int StartMinuteOfDay, int EndMinuteOfDay)
 /// <param name="Breaks">Non-schedulable interruptions inside the shift.</param>
 public sealed record RecurringShift(int IsoWeekday, DayRange Shift, IReadOnlyList<DayRange> Breaks)
 {
+    /// <summary>Materialisation constructor for the persistence layer only.</summary>
+    /// <remarks>
+    /// EF cannot bind the positional constructor, because Breaks is an owned COLLECTION
+    /// navigation rather than a scalar. The placeholder values are overwritten immediately
+    /// during materialisation.
+    /// </remarks>
+    private RecurringShift()
+        : this(1, new DayRange(0, 1), [])
+    {
+    }
+
     /// <summary>Nominal net minutes: shift length minus breaks, before any DST effect.</summary>
     public int NominalNetMinutes => Shift.NominalMinutes - Breaks.Sum(pause => pause.NominalMinutes);
 }
@@ -74,6 +87,15 @@ public sealed class ResourceCalendarRevision
         CapacityPolicy = capacityPolicy;
         EffectiveFromUtc = effectiveFromUtc;
         EffectiveToUtc = effectiveToUtc;
+    }
+
+    /// <summary>Materialisation constructor for the persistence layer only.</summary>
+    /// <remarks>
+    /// EF cannot bind the real constructor, so it needs this one. Private, so application
+    /// code still has to go through the factory method and its invariants.
+    /// </remarks>
+    private ResourceCalendarRevision()
+    {
     }
 
     /// <summary>Revision identity.</summary>

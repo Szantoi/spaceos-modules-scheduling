@@ -61,6 +61,15 @@ public sealed class CapacityReservation
         State = CapacityReservationState.Held;
     }
 
+    /// <summary>Materialisation constructor for the persistence layer only.</summary>
+    /// <remarks>
+    /// EF cannot bind the real constructor, so it needs this one. Private, so application
+    /// code still has to go through the factory method and its invariants.
+    /// </remarks>
+    private CapacityReservation()
+    {
+    }
+
     /// <summary>Reservation identity.</summary>
     public Guid Id { get; }
 
