@@ -20,42 +20,41 @@ namespace SpaceOS.Modules.Scheduling.Domain.Tests;
 public sealed class DoorstarCompatibilityGateTests
 {
     /// <summary>
-    /// The gate covers all 14 pack entries: 3 effort vectors, 7 dependency vectors,
-    /// 3 operation standard samples and 1 calendar draft.
+    /// Both pinned packs run the same gate. v1 is the original 13-entry pack a consumer may
+    /// still hold; v2 supersedes it with the settled partial-release vector (14 entries).
     /// </summary>
-    /// <remarks>
-    /// It was 13 until 2026-07-28, when the settled partial-release rule added
-    /// <c>later-partial-release-overrides-fs-with-warning</c>. The hash pin forced this
-    /// update to be deliberate: the suite failed on the changed pack until the new digest was
-    /// verified against the Doorstar announcement and written down.
-    /// </remarks>
-    private const int ExpectedPackEntryCount = 14;
+    public static TheoryData<string> Packs => new() { CompatibilityFixture.V1, CompatibilityFixture.V2 };
 
-    public static TheoryData<string> EffortVectorIds => Ids("legacyCalculationVectors");
+    public static TheoryData<string, string> EffortVectorIds => Ids("legacyCalculationVectors");
 
-    public static TheoryData<string> DependencyVectorIds => Ids("dependencyCompatibilityVectors");
+    public static TheoryData<string, string> DependencyVectorIds => Ids("dependencyCompatibilityVectors");
 
-    [Fact]
-    public void Pack_carries_the_agreed_thirteen_entries()
+    [Theory]
+    [MemberData(nameof(Packs))]
+    public void Pack_carries_the_agreed_entry_count(string pack)
     {
-        var effort = CompatibilityFixture.Root.GetProperty("legacyCalculationVectors").GetArrayLength();
-        var dependency = CompatibilityFixture.Root.GetProperty("dependencyCompatibilityVectors").GetArrayLength();
-        var samples = CompatibilityFixture.Root.GetProperty("operationStandardSamples").GetArrayLength();
-        var calendarResources = CompatibilityFixture.Root
-            .GetProperty("calendarDraft").GetProperty("resources").GetArrayLength();
+        var root = CompatibilityFixture.Root(pack);
+        var effort = root.GetProperty("legacyCalculationVectors").GetArrayLength();
+        var dependency = root.GetProperty("dependencyCompatibilityVectors").GetArrayLength();
+        var samples = root.GetProperty("operationStandardSamples").GetArrayLength();
+        var calendarResources = root.GetProperty("calendarDraft").GetProperty("resources").GetArrayLength();
+
+        var expectedDependency = pack == CompatibilityFixture.V1 ? 6 : 7;
 
         Assert.Equal(3, effort);
-        Assert.Equal(7, dependency);
+        Assert.Equal(expectedDependency, dependency);
         Assert.Equal(3, samples);
         Assert.Equal(1, calendarResources);
-        Assert.Equal(ExpectedPackEntryCount, effort + dependency + samples + calendarResources);
+        Assert.Equal(
+            pack == CompatibilityFixture.V1 ? 13 : 14,
+            effort + dependency + samples + calendarResources);
     }
 
     [Theory]
     [MemberData(nameof(EffortVectorIds))]
-    public void Effort_vector_reproduces(string vectorId)
+    public void Effort_vector_reproduces(string pack, string vectorId)
     {
-        var vector = Vector("legacyCalculationVectors", vectorId);
+        var vector = Vector(pack, "legacyCalculationVectors", vectorId);
         var input = vector.GetProperty("input");
         var expected = vector.GetProperty("expected");
 
@@ -83,9 +82,9 @@ public sealed class DoorstarCompatibilityGateTests
 
     [Theory]
     [MemberData(nameof(DependencyVectorIds))]
-    public void Dependency_vector_reproduces(string vectorId)
+    public void Dependency_vector_reproduces(string pack, string vectorId)
     {
-        var vector = Vector("dependencyCompatibilityVectors", vectorId);
+        var vector = Vector(pack, "dependencyCompatibilityVectors", vectorId);
         var input = vector.GetProperty("input");
         var expected = vector.GetProperty("expected");
 
@@ -112,10 +111,11 @@ public sealed class DoorstarCompatibilityGateTests
         AssertWarnings(expected, bounds.Warnings);
     }
 
-    [Fact]
-    public void Calendar_draft_yields_the_documented_four_hundred_and_eighty_net_minutes()
+    [Theory]
+    [MemberData(nameof(Packs))]
+    public void Calendar_draft_yields_the_documented_four_hundred_and_eighty_net_minutes(string pack)
     {
-        var shifts = CompatibilityFixture.Root
+        var shifts = CompatibilityFixture.Root(pack)
             .GetProperty("calendarDraft").GetProperty("resources")[0].GetProperty("shifts");
 
         foreach (var shift in shifts.EnumerateArray())
@@ -131,10 +131,11 @@ public sealed class DoorstarCompatibilityGateTests
         }
     }
 
-    [Fact]
-    public void Operation_standard_samples_keep_their_source_provenance()
+    [Theory]
+    [MemberData(nameof(Packs))]
+    public void Operation_standard_samples_keep_their_source_provenance(string pack)
     {
-        foreach (var sample in CompatibilityFixture.Root.GetProperty("operationStandardSamples").EnumerateArray())
+        foreach (var sample in CompatibilityFixture.Root(pack).GetProperty("operationStandardSamples").EnumerateArray())
         {
             Assert.False(string.IsNullOrWhiteSpace(sample.GetProperty("sourceTaskKey").GetString()));
             Assert.True(sample.GetProperty("sourceRow").GetInt32() > 0);
@@ -214,16 +215,19 @@ public sealed class DoorstarCompatibilityGateTests
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, null),
     };
 
-    private static JsonElement Vector(string arrayName, string vectorId) =>
-        CompatibilityFixture.Root.GetProperty(arrayName).EnumerateArray()
+    private static JsonElement Vector(string pack, string arrayName, string vectorId) =>
+        CompatibilityFixture.Root(pack).GetProperty(arrayName).EnumerateArray()
             .Single(item => item.GetProperty("id").GetString() == vectorId);
 
-    private static TheoryData<string> Ids(string arrayName)
+    private static TheoryData<string, string> Ids(string arrayName)
     {
-        var data = new TheoryData<string>();
-        foreach (var item in CompatibilityFixture.Root.GetProperty(arrayName).EnumerateArray())
+        var data = new TheoryData<string, string>();
+        foreach (var pack in new[] { CompatibilityFixture.V1, CompatibilityFixture.V2 })
         {
-            data.Add(item.GetProperty("id").GetString()!);
+            foreach (var item in CompatibilityFixture.Root(pack).GetProperty(arrayName).EnumerateArray())
+            {
+                data.Add(pack, item.GetProperty("id").GetString()!);
+            }
         }
         return data;
     }

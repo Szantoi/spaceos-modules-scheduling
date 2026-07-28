@@ -201,6 +201,34 @@ public sealed class SchedulingDbContext : DbContext
                 shift.OwnsMany(entity => entity.Breaks);
             });
             calendar.Navigation(entity => entity.Shifts).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            // Exceptions get their OWN TABLE, unlike the shift pattern that sits in json.
+            // The difference is how they are used: the weekly pattern is fixed-size and always
+            // read whole, while exceptions accumulate for years and are read by DATE RANGE
+            // (the calculator wants the ones overlapping one job). In json every read would
+            // load and scan every closure ever recorded for that resource; a table gives an
+            // index on (calendar_revision_id, date) and a child RLS policy of its own.
+            calendar.OwnsMany(entity => entity.Exceptions, exception =>
+            {
+                exception.ToTable(SchedulingRlsSql.CalendarExceptionsTable);
+                exception.WithOwner().HasForeignKey("calendar_revision_id");
+                exception.HasKey(entity => entity.Id);
+
+                exception.Property(entity => entity.Id).HasColumnName("id");
+                exception.Property(entity => entity.Date).HasColumnName("date").IsRequired();
+                exception.Property(entity => entity.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(32).IsRequired();
+                exception.Property(entity => entity.Reason).HasColumnName("reason").HasMaxLength(512);
+
+                exception.OwnsOne(entity => entity.Span, span =>
+                {
+                    span.Property(value => value.StartMinuteOfDay).HasColumnName("start_minute_of_day");
+                    span.Property(value => value.EndMinuteOfDay).HasColumnName("end_minute_of_day");
+                });
+
+                exception.HasIndex("calendar_revision_id", nameof(CalendarException.Date))
+                    .HasDatabaseName("ix_calendar_exceptions_revision_date");
+            });
+            calendar.Navigation(entity => entity.Exceptions).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
         modelBuilder.Entity<CapacityReservation>(reservation =>

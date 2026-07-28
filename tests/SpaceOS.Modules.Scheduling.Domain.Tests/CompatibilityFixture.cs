@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -6,63 +7,72 @@ using System.Text.Json;
 namespace SpaceOS.Modules.Scheduling.Domain.Tests;
 
 /// <summary>
-/// Loads the Doorstar planning input pack and enforces its SHA-256 pin.
+/// Loads a Doorstar input pack and enforces its SHA-256 pin.
 /// </summary>
 /// <remarks>
-/// The pack is an EXTERNAL contract input owned by the Doorstar instance
-/// (<c>doorstar-instance/docs/projects/doorstar-production-planning/fixtures/</c>).
-/// The copy here is byte-identical and pinned: if Doorstar publishes a new revision,
-/// this gate fails loudly instead of silently following a changed source. Updating the
-/// pin is therefore a deliberate, reviewable act.
+/// <para>
+/// The packs are EXTERNAL contract inputs owned by the Doorstar instance. Each copy here is
+/// byte-identical and pinned: a republished pack fails this gate loudly instead of silently
+/// changing what the core is measured against. Updating a pin is therefore a deliberate,
+/// reviewable act.
+/// </para>
+/// <para>
+/// Two packs are pinned side by side, not one mutable file. v1 is the original 13-entry
+/// pack; v2 supersedes it with the settled partial-release vector. Keeping both means the
+/// core stays provably compatible with what an older consumer may still hold, and the
+/// version number keeps identifying exactly one content — the discipline a single mutated
+/// file broke on 2026-07-28.
+/// </para>
 /// </remarks>
 internal static class CompatibilityFixture
 {
-    private const string FixtureFileName = "doorstar-planning-input-pack.v1.json";
-    private const string PinFileName = "doorstar-planning-input-pack.v1.sha256";
+    /// <summary>The original pack: 13 entries, no warning vector.</summary>
+    internal const string V1 = "v1";
 
-    private static readonly Lazy<JsonDocument> LazyDocument = new(Load);
+    /// <summary>Supersedes v1 with the settled partial-release rule: 14 entries.</summary>
+    internal const string V2 = "v2";
 
-    internal static JsonElement Root => LazyDocument.Value.RootElement;
+    private static readonly ConcurrentDictionary<string, JsonDocument> Loaded = new();
 
-    internal static string FixturePath =>
-        Path.Combine(AppContext.BaseDirectory, "Fixtures", FixtureFileName);
+    /// <summary>Root element of the requested pack.</summary>
+    internal static JsonElement Root(string version) =>
+        Loaded.GetOrAdd(version, Load).RootElement;
 
-    private static JsonDocument Load()
+    private static JsonDocument Load(string version)
     {
-        var path = FixturePath;
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", $"doorstar-planning-input-pack.{version}.json");
         if (!File.Exists(path))
         {
-            throw new FileNotFoundException(
-                $"Compatibility fixture missing at '{path}'. It must be copied to the output directory.", path);
+            throw new FileNotFoundException($"Compatibility fixture missing at '{path}'.", path);
         }
 
-        var expected = ReadPinnedHash();
+        var expected = ReadPinnedHash(version);
         var actual = ComputeSha256(path);
         if (!string.Equals(expected, actual, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"Doorstar input pack hash mismatch.{Environment.NewLine}" +
+                $"Doorstar input pack {version} hash mismatch.{Environment.NewLine}" +
                 $"  expected (pinned): {expected}{Environment.NewLine}" +
                 $"  actual   (file):   {actual}{Environment.NewLine}" +
-                "The compatibility gate is pinned on purpose: re-verify the new pack against the " +
-                "published contract, then update the .sha256 file in the same commit.");
+                "The gate is pinned on purpose: re-verify the pack against the Doorstar " +
+                "announcement, then update the .sha256 file in the same commit.");
         }
 
         return JsonDocument.Parse(File.ReadAllBytes(path));
     }
 
-    private static string ReadPinnedHash()
+    private static string ReadPinnedHash(string version)
     {
-        var pinPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", PinFileName);
+        var pinPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", $"doorstar-planning-input-pack.{version}.sha256");
         if (!File.Exists(pinPath))
         {
             throw new FileNotFoundException($"Fixture pin file missing at '{pinPath}'.", pinPath);
         }
 
         // "<hash>  <filename>" -- the sha256sum convention.
-        var firstToken = File.ReadAllText(pinPath).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return firstToken.Length > 0
-            ? firstToken[0]
+        var tokens = File.ReadAllText(pinPath).Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return tokens.Length > 0
+            ? tokens[0]
             : throw new InvalidOperationException($"Fixture pin file '{pinPath}' is empty.");
     }
 

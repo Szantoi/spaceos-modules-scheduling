@@ -66,6 +66,7 @@ public enum CapacityPolicy
 public sealed class ResourceCalendarRevision
 {
     private readonly List<RecurringShift> _shifts = [];
+    private readonly List<CalendarException> _exceptions = [];
 
     private ResourceCalendarRevision(
         Guid id,
@@ -127,6 +128,11 @@ public sealed class ResourceCalendarRevision
 
     /// <summary>The recurring shifts, at most one per weekday.</summary>
     public IReadOnlyList<RecurringShift> Shifts => _shifts;
+
+    /// <summary>
+    /// Dated deviations from the shift pattern: closures, maintenance, overtime.
+    /// </summary>
+    public IReadOnlyList<CalendarException> Exceptions => _exceptions;
 
     /// <summary>True once a reviewer approved it; only an approved revision may be scheduled against.</summary>
     public bool IsApproved { get; private set; }
@@ -206,6 +212,34 @@ public sealed class ResourceCalendarRevision
         }
 
         EffectiveToUtc = effectiveToUtc;
+    }
+
+    /// <summary>
+    /// Adds a dated exception to this revision.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The revision is already approved, or the date already carries an exception of that kind.
+    /// </exception>
+    public void AddException(CalendarException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        if (IsApproved)
+        {
+            // A revision is the record of what a plan was computed against. Changing it after
+            // approval would rewrite history for every plan that already used it -- the exact
+            // thing revisioning exists to prevent.
+            throw new InvalidOperationException(
+                $"Calendar revision {Revision} is approved; add exceptions to a new revision instead.");
+        }
+
+        if (_exceptions.Any(existing => existing.Date == exception.Date && existing.Kind == exception.Kind))
+        {
+            throw new InvalidOperationException(
+                $"{exception.Date:O} already carries a {exception.Kind} exception in revision {Revision}.");
+        }
+
+        _exceptions.Add(exception);
     }
 
     /// <summary>Nominal net minutes for an ISO weekday; 0 when the day has no shift.</summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using NodaTime;
+using SpaceOS.Modules.Scheduling.Domain.Resources;
 
 namespace SpaceOS.Modules.Scheduling.Infrastructure.Calendars;
 
@@ -35,13 +36,22 @@ public sealed class WorkingCalendar
 {
     private readonly DateTimeZone _zone;
     private readonly IReadOnlyList<ShiftDefinition> _shifts;
+    private readonly IReadOnlyList<CalendarException> _exceptions;
 
     /// <param name="zoneId">IANA zone id, e.g. <c>Europe/Budapest</c>.</param>
     /// <param name="shifts">Recurring shift definitions; at most one per weekday.</param>
+    /// <param name="exceptions">
+    /// Dated deviations: closures and maintenance remove working time, overtime adds it.
+    /// Without them a calendar is a lie the moment the plant closes.
+    /// </param>
     /// <exception cref="ArgumentException">The zone is unknown or a shift is malformed.</exception>
-    public WorkingCalendar(string zoneId, IReadOnlyList<ShiftDefinition> shifts)
+    public WorkingCalendar(
+        string zoneId,
+        IReadOnlyList<ShiftDefinition> shifts,
+        IReadOnlyList<CalendarException>? exceptions = null)
     {
         ArgumentNullException.ThrowIfNull(shifts);
+        _exceptions = exceptions ?? [];
 
         _zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(zoneId)
             ?? throw new ArgumentException($"Unknown IANA time zone: '{zoneId}'.", nameof(zoneId));
@@ -69,27 +79,97 @@ public sealed class WorkingCalendar
     /// <returns>Empty when the date has no shift (weekend, or a weekday without a definition).</returns>
     public IReadOnlyList<WorkingInterval> IntervalsOn(LocalDate date)
     {
+        var ranges = ShiftRangesOn(date);
+        ranges = ApplyExceptions(date, ranges);
+
+        return [.. ranges
+            .OrderBy(range => range.Start)
+            .Select(range => Materialise(date, range.Start, range.End))];
+    }
+
+    /// <summary>The shift's local ranges for a date, breaks already removed.</summary>
+    private List<(LocalTime Start, LocalTime End)> ShiftRangesOn(LocalDate date)
+    {
         var shift = _shifts.FirstOrDefault(candidate => candidate.Weekday == date.DayOfWeek);
         if (shift is null) { return []; }
 
-        var intervals = new List<WorkingInterval>();
+        var ranges = new List<(LocalTime Start, LocalTime End)>();
         var cursor = shift.Span.Start;
 
         foreach (var pause in shift.Breaks.OrderBy(pause => pause.Start))
         {
-            if (pause.Start > cursor)
-            {
-                intervals.Add(Materialise(date, cursor, pause.Start));
-            }
+            if (pause.Start > cursor) { ranges.Add((cursor, pause.Start)); }
             cursor = pause.End;
         }
 
-        if (cursor < shift.Span.End)
+        if (cursor < shift.Span.End) { ranges.Add((cursor, shift.Span.End)); }
+        return ranges;
+    }
+
+    /// <summary>
+    /// Applies the dated exceptions: removals cut time out, overtime adds it.
+    /// </summary>
+    /// <remarks>
+    /// Removals are applied BEFORE overtime on purpose. A closure means the resource is not
+    /// available at all that day, and approved overtime is a deliberate, explicit statement
+    /// that someone WILL work — so it must survive the closure rather than be cancelled by it.
+    /// </remarks>
+    private List<(LocalTime Start, LocalTime End)> ApplyExceptions(
+        LocalDate date,
+        List<(LocalTime Start, LocalTime End)> ranges)
+    {
+        var forDate = _exceptions.Where(item => item.Date == new DateOnly(date.Year, date.Month, date.Day)).ToArray();
+        if (forDate.Length == 0) { return ranges; }
+
+        foreach (var removal in forDate.Where(item => item.RemovesTime))
         {
-            intervals.Add(Materialise(date, cursor, shift.Span.End));
+            var cut = removal.Span is null
+                ? (Start: new LocalTime(0, 0), End: LocalTime.MaxValue)
+                : (Start: FromMinutes(removal.Span.StartMinuteOfDay), End: FromMinutes(removal.Span.EndMinuteOfDay));
+
+            ranges = ranges.SelectMany(range => Subtract(range, cut)).ToList();
         }
 
-        return intervals;
+        foreach (var overtime in forDate.Where(item => item.Kind == CalendarExceptionKind.Overtime))
+        {
+            ranges.Add((FromMinutes(overtime.Span!.StartMinuteOfDay), FromMinutes(overtime.Span.EndMinuteOfDay)));
+        }
+
+        return Merge(ranges);
+    }
+
+    private static LocalTime FromMinutes(int minuteOfDay) =>
+        minuteOfDay >= 1440 ? LocalTime.MaxValue : new LocalTime(minuteOfDay / 60, minuteOfDay % 60);
+
+    private static IEnumerable<(LocalTime Start, LocalTime End)> Subtract(
+        (LocalTime Start, LocalTime End) range,
+        (LocalTime Start, LocalTime End) cut)
+    {
+        if (cut.End <= range.Start || cut.Start >= range.End)
+        {
+            yield return range;
+            yield break;
+        }
+
+        if (cut.Start > range.Start) { yield return (range.Start, cut.Start); }
+        if (cut.End < range.End) { yield return (cut.End, range.End); }
+    }
+
+    /// <summary>Merges overlapping or touching ranges so no minute is counted twice.</summary>
+    private static List<(LocalTime Start, LocalTime End)> Merge(List<(LocalTime Start, LocalTime End)> ranges)
+    {
+        var merged = new List<(LocalTime Start, LocalTime End)>();
+        foreach (var range in ranges.Where(item => item.End > item.Start).OrderBy(item => item.Start))
+        {
+            if (merged.Count > 0 && range.Start <= merged[^1].End)
+            {
+                var previous = merged[^1];
+                merged[^1] = (previous.Start, range.End > previous.End ? range.End : previous.End);
+                continue;
+            }
+            merged.Add(range);
+        }
+        return merged;
     }
 
     /// <summary>

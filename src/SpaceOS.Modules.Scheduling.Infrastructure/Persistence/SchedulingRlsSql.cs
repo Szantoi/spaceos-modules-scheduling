@@ -27,6 +27,9 @@ public static class SchedulingRlsSql
     /// <summary>Resource calendars: revisioned, tenant-scoped directly.</summary>
     public const string CalendarsTable = "resource_calendar_revisions";
 
+    /// <summary>Calendar exceptions: tenant follows the parent calendar revision.</summary>
+    public const string CalendarExceptionsTable = "calendar_exceptions";
+
     /// <summary>Capacity reservations: tenant-scoped directly.</summary>
     public const string ReservationsTable = "capacity_reservations";
 
@@ -51,7 +54,7 @@ public static class SchedulingRlsSql
     public static IReadOnlyList<string> AllTables =>
     [
         RunsTable, RevisionsTable, OperationsTable,
-        CalendarsTable,
+        CalendarsTable, CalendarExceptionsTable,
         ReservationsTable,
         StandardsTable, StandardRevisionsTable,
         AuditTable, OutboxTable,
@@ -84,6 +87,7 @@ public static class SchedulingRlsSql
         // Children reach their tenant through the parent row.
         RlsMigrationSql.EnableChildTenantRls(schema, RevisionsTable, "run_id", RunsTable, "id", "tenant_id"),
         RlsMigrationSql.EnableChildTenantRls(schema, StandardRevisionsTable, "standard_id", StandardsTable, "id", "tenant_id"),
+        RlsMigrationSql.EnableChildTenantRls(schema, CalendarExceptionsTable, "calendar_revision_id", CalendarsTable, "id", "tenant_id"),
 
         // Two levels deep, so the shared single-hop helper does not fit: operations reach
         // their tenant through the revision. Written in the same shape as the helper output

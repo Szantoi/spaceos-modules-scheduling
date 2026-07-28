@@ -1,9 +1,13 @@
 {
-  "$schema": "https://joinerytech.hu/contracts/doorstar-planning-input-pack/v1",
-  "schemaVersion": "1.0",
+  "$schema": "https://joinerytech.hu/contracts/doorstar-planning-input-pack/v2",
+  "schemaVersion": "2.0.0",
+  "supersedes": {
+    "fileName": "doorstar-planning-input-pack.v1.json",
+    "sha256": "D7D84A3E54016108CDDB9E1686DF108D0A1C1DBA39855ADA0628ABF3C87BC837"
+  },
   "tenantSlug": "doorstar",
   "timezone": "Europe/Budapest",
-  "purpose": "Read-only fixture pack for PLAN-01/PLAN-02 and later C# compatibility tests. It is not an import command or an approved production calendar.",
+  "purpose": "Read-only compatibility fixture pack. It is not an import command or an approved production calendar.",
   "sourceProvenance": {
     "unitTimeCatalogue": {
       "fileName": "Egység_idő.xlsx",
@@ -60,6 +64,11 @@
       "expected": { "earliestStartMinute": 150, "startSource": "partial_release" }
     },
     {
+      "id": "later-partial-release-overrides-fs-with-warning",
+      "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "lagMinutes": 0, "partialReleaseMinute": 250 },
+      "expected": { "earliestStartMinute": 250, "startSource": "partial_release", "warnings": ["partial_release_delays_fs_start"] }
+    },
+    {
       "id": "fixed-bounds-override-derived-bounds",
       "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "partialReleaseMinute": 150, "fixedStartMinute": 120, "fixedFinishMinute": 280 },
       "expected": { "earliestStartMinute": 120, "earliestFinishMinute": 280, "startSource": "fixed_override", "finishSource": "fixed_override" }
@@ -70,7 +79,7 @@
       "sourceRow": 44,
       "sourceTaskKey": "GyV-B.06",
       "operationLabel": "Fóliázás",
-      "workflowGroup": "Boritás",
+      "workflowGroup": "Borítás",
       "sourceResourceLabel": "Fóliázó",
       "unitSeconds": 340,
       "workforce": 2,

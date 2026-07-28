@@ -406,6 +406,67 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                 .IsRequired();
                         });
 
+                    b.OwnsMany("SpaceOS.Modules.Scheduling.Domain.Resources.CalendarException", "Exceptions", b1 =>
+                        {
+                            b1.Property<Guid>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateOnly>("Date")
+                                .HasColumnType("date")
+                                .HasColumnName("date");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("kind");
+
+                            b1.Property<string>("Reason")
+                                .HasMaxLength(512)
+                                .HasColumnType("character varying(512)")
+                                .HasColumnName("reason");
+
+                            b1.Property<Guid>("calendar_revision_id")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("calendar_revision_id", "Date")
+                                .HasDatabaseName("ix_calendar_exceptions_revision_date");
+
+                            b1.ToTable("calendar_exceptions", "scheduling");
+
+                            b1.WithOwner()
+                                .HasForeignKey("calendar_revision_id");
+
+                            b1.OwnsOne("SpaceOS.Modules.Scheduling.Domain.Resources.DayRange", "Span", b2 =>
+                                {
+                                    b2.Property<Guid>("CalendarExceptionId")
+                                        .HasColumnType("uuid");
+
+                                    b2.Property<int>("EndMinuteOfDay")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("end_minute_of_day");
+
+                                    b2.Property<int>("StartMinuteOfDay")
+                                        .HasColumnType("integer")
+                                        .HasColumnName("start_minute_of_day");
+
+                                    b2.HasKey("CalendarExceptionId");
+
+                                    b2.ToTable("calendar_exceptions", "scheduling");
+
+                                    b2.WithOwner()
+                                        .HasForeignKey("CalendarExceptionId");
+                                });
+
+                            b1.Navigation("Span");
+                        });
+
+                    b.Navigation("Exceptions");
+
                     b.Navigation("Shifts");
                 });
 

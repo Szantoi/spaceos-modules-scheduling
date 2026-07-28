@@ -27,37 +27,35 @@ Two properties are deliberate and load-bearing:
 
 ## The compatibility gate
 
-`tests/.../Fixtures/doorstar-planning-input-pack.v1.json` is a **byte-identical,
-SHA-256 pinned** copy of the Doorstar instance's input pack. Its 13 entries
-(3 effort vectors + 6 dependency vectors + 3 operation standard samples + 1 calendar
-draft) are read from the file at test time rather than transcribed into C#, so the
-core cannot drift from the source without failing.
+Two Doorstar input packs are pinned side by side, each a **byte-identical, SHA-256
+pinned** copy: `v1` (13 entries) and `v2` (14 entries, adding the settled
+partial-release vector and superseding v1). Every entry is read from the file at test
+time rather than transcribed into C#, so the core cannot drift from the source without
+failing.
 
-If Doorstar publishes a new pack, the pin fails first. That is intentional: re-verify
-the new pack against the published contract, then update the `.sha256` file in the
-same commit.
+Both are kept because a version number must identify exactly one content: v1 is what an
+older consumer may still hold, v2 is current. If Doorstar publishes a new pack, the pin
+fails first — re-verify it against the announcement, then update the `.sha256` file in
+the same commit.
 
-## Open contract question — partial release
+## Partial release — the settled rule
 
-Two questions are **unanswered** (JoineryTech backend → Doorstar root, 2026-07-28;
-scope boundary confirmed by Doorstar root and the platform root the same day):
+Both questions were answered by the business owner on 2026-07-28 and carried into
+ADR-069 §4:
 
-1. Does a partial release override the FS bound unconditionally, even when it points
-   to a **later** minute?
-2. How is the calendar-aware release minute derived from `releaseThresholdPercent`?
+1. A partial release **overrides the FS bound unconditionally**, even when it points to a
+   later minute. Because that can delay work the dependency would have allowed earlier,
+   the resolver attaches `DependencyWarning.PartialReleaseDelaysStart` — equality is not a
+   delay and does not warn.
+2. The release minute is **proportional to WORKING time** on the predecessor's calendar
+   (breaks and closures excluded), rounded **up** to the next working minute
+   (`WorkingTimeReleaseCalculator`). Rounding up because releasing early means releasing
+   against unfinished output.
 
-Therefore:
-
-- `DependencyBoundResolver.Resolve` takes a **required** `PartialReleasePolicy` — there
-  is no default value and no `Default` enum member. Passing `Unspecified` while a
-  release is present throws.
-- Today's baseline behaviour is labelled `doorstar-baseline-v1 (not final)`
-  (`PartialReleaseContract.BaselineLabel`).
-- The threshold→minute conversion is an interface (`IPartialReleaseCalculator`) whose
-  only implementation (`PendingContractReleaseCalculator`) throws. A guessed formula
-  would look plausible and quietly produce wrong schedules.
-
-**The dependency resolver therefore cannot be declared done until both are answered.**
+The label of the rule set in force is `doorstar-contract-v1 (final)`
+(`PartialReleaseContract.ContractLabel`). The earlier `PartialReleasePolicy` parameter and
+the throwing calculator are gone: they existed only to stop an undecided rule from being
+assumed silently.
 
 ## Industry neutrality
 
