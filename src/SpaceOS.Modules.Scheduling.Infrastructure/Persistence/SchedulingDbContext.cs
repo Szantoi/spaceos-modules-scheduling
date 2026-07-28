@@ -104,6 +104,17 @@ public sealed class SchedulingDbContext : DbContext
                     operation.WithOwner().HasForeignKey("revision_id");
 
                     operation.Property(entity => entity.OperationId).HasColumnName("operation_id").HasMaxLength(128).IsRequired();
+
+                    // Opaque Kernel reference: stored as a plain uuid, never joined to.
+                    operation.Property(entity => entity.Epic)
+                        .HasColumnName("epic_ref")
+                        .HasConversion(reference => reference.Value, value => EpicRef.From(value))
+                        .IsRequired();
+                    // Property name (Epic), not column name (epic_ref) -- the same trap the
+                    // model/RLS sync guard caught on the revision index.
+                    operation.HasIndex("revision_id", nameof(OperationPlan.Epic))
+                        .HasDatabaseName("ix_operation_plans_revision_epic");
+
                     operation.Property(entity => entity.ResourceKey).HasColumnName("resource_key").HasMaxLength(128).IsRequired();
                     operation.Property(entity => entity.StartMinute).HasColumnName("start_minute").HasPrecision(18, 4).IsRequired();
                     operation.Property(entity => entity.FinishMinute).HasColumnName("finish_minute").HasPrecision(18, 4).IsRequired();

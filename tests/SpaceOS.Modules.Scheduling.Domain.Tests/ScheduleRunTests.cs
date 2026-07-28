@@ -14,6 +14,7 @@ public sealed class ScheduleRunTests
 {
     private static readonly DateTimeOffset Now = new(2026, 7, 28, 10, 0, 0, TimeSpan.Zero);
     private static readonly Guid TenantId = Guid.Parse("11111111-2222-4333-8444-555555555555");
+    private static readonly EpicRef TestEpic = EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666"));
 
     private static ScheduleRun NewRun() =>
         ScheduleRun.Open(Guid.NewGuid(), TenantId, ProjectRef.From(Guid.NewGuid()), Now);
@@ -22,6 +23,7 @@ public sealed class ScheduleRunTests
         [.. ids.Select((id, index) => new OperationPlan
         {
             OperationId = id,
+            Epic = TestEpic,
             ResourceKey = "resource-1",
             StartMinute = index * 60,
             FinishMinute = (index * 60) + 45,
@@ -203,7 +205,7 @@ public sealed class ScheduleRunTests
         {
             new OperationPlan
             {
-                OperationId = "a", ResourceKey = "r", StartMinute = 100, FinishMinute = 40,
+                OperationId = "a", Epic = TestEpic, ResourceKey = "r", StartMinute = 100, FinishMinute = 40,
             },
         };
 
@@ -218,7 +220,7 @@ public sealed class ScheduleRunTests
         {
             new OperationPlan
             {
-                OperationId = "gate", ResourceKey = "r", StartMinute = 100, FinishMinute = 100,
+                OperationId = "gate", Epic = TestEpic, ResourceKey = "r", StartMinute = 100, FinishMinute = 100,
             },
         };
 

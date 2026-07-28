@@ -15,6 +15,16 @@ public sealed record OperationPlan
     /// <summary>Stable operation identifier, unique inside the revision.</summary>
     public required string OperationId { get; init; }
 
+    /// <summary>
+    /// The epic this operation belongs to (project → epics → operations).
+    /// </summary>
+    /// <remarks>
+    /// Required, not optional: an operation that belongs to no epic could not be traced back
+    /// to the work it serves, and the plan could not be presented in the hierarchy the
+    /// customer actually uses.
+    /// </remarks>
+    public required EpicRef Epic { get; init; }
+
     /// <summary>Resource the operation is assigned to.</summary>
     public required string ResourceKey { get; init; }
 

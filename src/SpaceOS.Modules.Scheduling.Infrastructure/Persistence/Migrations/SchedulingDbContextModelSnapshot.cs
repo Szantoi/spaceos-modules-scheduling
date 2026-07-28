@@ -107,6 +107,10 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                         .HasColumnType("boolean")
                                         .HasColumnName("automatically_planned");
 
+                                    b2.Property<Guid>("Epic")
+                                        .HasColumnType("uuid")
+                                        .HasColumnName("epic_ref");
+
                                     b2.Property<decimal>("FinishMinute")
                                         .HasPrecision(18, 4)
                                         .HasColumnType("numeric(18,4)")
@@ -124,6 +128,9 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                         .HasColumnName("start_minute");
 
                                     b2.HasKey("revision_id", "OperationId");
+
+                                    b2.HasIndex("revision_id", "Epic")
+                                        .HasDatabaseName("ix_operation_plans_revision_epic");
 
                                     b2.ToTable("operation_plans", "scheduling");
 
