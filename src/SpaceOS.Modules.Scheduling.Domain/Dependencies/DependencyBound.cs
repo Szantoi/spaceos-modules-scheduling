@@ -54,4 +54,9 @@ public sealed record ResolvedDependencyBounds
 
     /// <summary>Which rule produced <see cref="EarliestFinishMinute"/>.</summary>
     public BoundSource? FinishSource { get; init; }
+
+    /// <summary>
+    /// Conditions the consumer must be told about; empty when the bounds are unremarkable.
+    /// </summary>
+    public IReadOnlyList<DependencyWarning> Warnings { get; init; } = [];
 }

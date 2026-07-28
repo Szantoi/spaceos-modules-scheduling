@@ -60,6 +60,11 @@
       "expected": { "earliestStartMinute": 150, "startSource": "partial_release" }
     },
     {
+      "id": "later-partial-release-overrides-fs-with-warning",
+      "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "lagMinutes": 0, "partialReleaseMinute": 250 },
+      "expected": { "earliestStartMinute": 250, "startSource": "partial_release", "warnings": ["partial_release_delays_fs_start"] }
+    },
+    {
       "id": "fixed-bounds-override-derived-bounds",
       "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "partialReleaseMinute": 150, "fixedStartMinute": 120, "fixedFinishMinute": 280 },
       "expected": { "earliestStartMinute": 120, "earliestFinishMinute": 280, "startSource": "fixed_override", "finishSource": "fixed_override" }

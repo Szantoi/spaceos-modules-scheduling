@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SpaceOS.Modules.Scheduling.Domain.Dependencies;
 
@@ -15,42 +16,25 @@ namespace SpaceOS.Modules.Scheduling.Domain.Dependencies;
 /// The two branches are independent: an FS edge constrains only the start, an FF edge
 /// only the finish. The caller combines bounds from all incoming edges.
 /// </para>
+/// <para>
+/// The partial-release rule is settled (business owner decision, 2026-07-28, ADR-069 §4):
+/// the release wins <b>unconditionally</b>, even when it is later than the precedence bound.
+/// Because that can delay work the dependency would have allowed earlier, the resolver
+/// attaches <see cref="DependencyWarning.PartialReleaseDelaysStart"/> instead of leaving a
+/// planner to wonder why an operation sits idle.
+/// </para>
 /// </remarks>
 public static class DependencyBoundResolver
 {
     /// <summary>Resolves one edge.</summary>
-    /// <param name="input">The edge and its already-scheduled predecessor.</param>
-    /// <param name="partialReleasePolicy">
-    /// Required, with no default: the partial-release semantics is an open contract
-    /// question, so the caller must state which reading it wants (see
-    /// <see cref="PartialReleasePolicy"/>).
-    /// </param>
     /// <exception cref="ArgumentException">The predecessor finishes before it starts.</exception>
-    /// <exception cref="InvalidOperationException">
-    /// A partial release is present but the policy is <see cref="PartialReleasePolicy.Unspecified"/>.
-    /// </exception>
-    public static ResolvedDependencyBounds Resolve(
-        DependencyBoundInput input,
-        PartialReleasePolicy partialReleasePolicy)
+    public static ResolvedDependencyBounds Resolve(DependencyBoundInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
 
         if (input.PredecessorFinishMinute < input.PredecessorStartMinute)
         {
-            throw new ArgumentException(
-                "Predecessor finish precedes its start.", nameof(input));
-        }
-
-        // Deliberately conservative ordering: this throws whenever a release is present and
-        // no policy was chosen, even in the case where a fixed override would have won and
-        // the release never mattered. Silently accepting that case would let a caller ship
-        // an unconfigured resolver and only discover the gap on the first edge without a
-        // fixed date -- in production, on a real schedule.
-        if (input.PartialReleaseMinute.HasValue && partialReleasePolicy == PartialReleasePolicy.Unspecified)
-        {
-            throw new InvalidOperationException(
-                "A partial release is present but no PartialReleasePolicy was chosen. " +
-                "The semantics is not settled with Doorstar, so the core refuses to assume one.");
+            throw new ArgumentException("Predecessor finish precedes its start.", nameof(input));
         }
 
         var dependencyStart = input.Type switch
@@ -67,6 +51,8 @@ public static class DependencyBoundResolver
             _ => (decimal?)null,
         };
 
+        var warnings = new List<DependencyWarning>();
+
         decimal? earliestStart;
         BoundSource? startSource;
 
@@ -77,8 +63,13 @@ public static class DependencyBoundResolver
         }
         else if (input.PartialReleaseMinute.HasValue)
         {
-            (earliestStart, startSource) = ApplyPartialRelease(
-                input.PartialReleaseMinute.Value, dependencyStart, partialReleasePolicy);
+            earliestStart = input.PartialReleaseMinute;
+            startSource = BoundSource.PartialRelease;
+
+            if (dependencyStart.HasValue && input.PartialReleaseMinute.Value > dependencyStart.Value)
+            {
+                warnings.Add(DependencyWarning.PartialReleaseDelaysStart);
+            }
         }
         else
         {
@@ -94,30 +85,7 @@ public static class DependencyBoundResolver
             FinishSource = input.FixedFinishMinute.HasValue
                 ? BoundSource.FixedOverride
                 : dependencyFinish.HasValue ? BoundSource.Dependency : null,
+            Warnings = warnings,
         };
-    }
-
-    private static (decimal? Bound, BoundSource? Source) ApplyPartialRelease(
-        decimal releaseMinute,
-        decimal? dependencyStart,
-        PartialReleasePolicy policy)
-    {
-        switch (policy)
-        {
-            case PartialReleasePolicy.ReplacesDependencyBound:
-                return (releaseMinute, BoundSource.PartialRelease);
-
-            case PartialReleasePolicy.MayOnlyAdvanceStart:
-                // A release later than the precedence bound is ignored: it may pull the
-                // start earlier, never push it out.
-                if (dependencyStart.HasValue && releaseMinute >= dependencyStart.Value)
-                {
-                    return (dependencyStart, BoundSource.Dependency);
-                }
-                return (releaseMinute, BoundSource.PartialRelease);
-
-            default:
-                throw new InvalidOperationException($"Unhandled PartialReleasePolicy: {policy}.");
-        }
     }
 }

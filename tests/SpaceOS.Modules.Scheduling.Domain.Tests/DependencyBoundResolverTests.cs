@@ -18,7 +18,7 @@ public sealed class DependencyBoundResolverTests
     };
 
     private static ResolvedDependencyBounds Resolve(DependencyBoundInput input) =>
-        DependencyBoundResolver.Resolve(input, PartialReleasePolicy.Unspecified);
+        DependencyBoundResolver.Resolve(input);
 
     [Theory]
     [InlineData(DependencyType.FinishToStart, 140)]

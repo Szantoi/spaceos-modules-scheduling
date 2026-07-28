@@ -20,10 +20,16 @@ namespace SpaceOS.Modules.Scheduling.Domain.Tests;
 public sealed class DoorstarCompatibilityGateTests
 {
     /// <summary>
-    /// The gate covers all 13 pack entries: 3 effort vectors, 6 dependency vectors,
+    /// The gate covers all 14 pack entries: 3 effort vectors, 7 dependency vectors,
     /// 3 operation standard samples and 1 calendar draft.
     /// </summary>
-    private const int ExpectedPackEntryCount = 13;
+    /// <remarks>
+    /// It was 13 until 2026-07-28, when the settled partial-release rule added
+    /// <c>later-partial-release-overrides-fs-with-warning</c>. The hash pin forced this
+    /// update to be deliberate: the suite failed on the changed pack until the new digest was
+    /// verified against the Doorstar announcement and written down.
+    /// </remarks>
+    private const int ExpectedPackEntryCount = 14;
 
     public static TheoryData<string> EffortVectorIds => Ids("legacyCalculationVectors");
 
@@ -39,7 +45,7 @@ public sealed class DoorstarCompatibilityGateTests
             .GetProperty("calendarDraft").GetProperty("resources").GetArrayLength();
 
         Assert.Equal(3, effort);
-        Assert.Equal(6, dependency);
+        Assert.Equal(7, dependency);
         Assert.Equal(3, samples);
         Assert.Equal(1, calendarResources);
         Assert.Equal(ExpectedPackEntryCount, effort + dependency + samples + calendarResources);
@@ -97,16 +103,13 @@ public sealed class DoorstarCompatibilityGateTests
                 PartialReleaseMinute = input.OptionalDecimal("partialReleaseMinute"),
                 FixedStartMinute = input.OptionalDecimal("fixedStartMinute"),
                 FixedFinishMinute = input.OptionalDecimal("fixedFinishMinute"),
-            },
-            // The pack was produced by the Doorstar reference, whose partial-release
-            // reading is exactly ReplacesDependencyBound. Pinning the gate to that policy
-            // keeps the OPEN question visible instead of hiding it behind a default.
-            PartialReleasePolicy.ReplacesDependencyBound);
+            });
 
         AssertBound(expected, "earliestStartMinute", bounds.EarliestStartMinute);
         AssertBound(expected, "earliestFinishMinute", bounds.EarliestFinishMinute);
         AssertSource(expected, "startSource", bounds.StartSource);
         AssertSource(expected, "finishSource", bounds.FinishSource);
+        AssertWarnings(expected, bounds.Warnings);
     }
 
     [Fact]
@@ -177,6 +180,23 @@ public sealed class DoorstarCompatibilityGateTests
             Assert.Null(actual);
         }
     }
+
+    private static void AssertWarnings(JsonElement expected, IReadOnlyList<DependencyWarning> actual)
+    {
+        var expectedWarnings = expected.TryGetProperty("warnings", out var warnings)
+            ? warnings.EnumerateArray().Select(item => item.GetString()!).OrderBy(name => name, StringComparer.Ordinal).ToArray()
+            : [];
+
+        var actualWarnings = actual.Select(ToWireName).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(expectedWarnings, actualWarnings);
+    }
+
+    private static string ToWireName(DependencyWarning warning) => warning switch
+    {
+        DependencyWarning.PartialReleaseDelaysStart => "partial_release_delays_fs_start",
+        _ => throw new ArgumentOutOfRangeException(nameof(warning), warning, null),
+    };
 
     private static string ToWireName(BoundSource source) => source switch
     {
