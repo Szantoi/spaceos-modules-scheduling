@@ -17,7 +17,9 @@
        sentences and would only gain noise from XML comments.
        The condition is on the project NAME, not on $(IsTestProject): this file is
        imported before the test project sets that property, so it would always be empty. -->
-  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+  <!-- 'Tests', not '.Tests': IntegrationTests would otherwise slip through and demand
+       XML comments on every fact. -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests'))">
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
