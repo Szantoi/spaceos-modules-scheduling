@@ -1,0 +1,10 @@
+# Normalise text in the repository, check out with LF everywhere.
+* text=auto eol=lf
+
+# The Doorstar input pack and its SHA-256 pin must stay BYTE-identical on every
+# platform: any line-ending conversion changes the hash and breaks the compatibility
+# gate on a fresh clone. Treating them as binary is what keeps the pin meaningful.
+tests/SpaceOS.Modules.Scheduling.Domain.Tests/Fixtures/** -text
+
+# Windows-only tooling files that expect CRLF.
+*.sln text eol=crlf
