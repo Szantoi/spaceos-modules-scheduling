@@ -30,13 +30,22 @@ public static class SchedulingModule
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var connectionString = configuration.GetConnectionString("Scheduling")
-            ?? throw new InvalidOperationException(
+        var connectionString = configuration.GetConnectionString("Scheduling");
+
+        // Null-OR-WHITESPACE, not just null: the shipped appsettings.json carries an EMPTY
+        // value on purpose (so the key is discoverable), and a null-only check would let the
+        // host start with no database configured at all.
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
                 "ConnectionStrings:Scheduling is not configured. The module refuses to start " +
                 "without it rather than silently falling back to a local default.");
+        }
 
-        services.AddSingleton<SpaceOsTenantSessionInterceptor>();
-
+        // No registration for SpaceOsTenantSessionInterceptor here: AddSpaceOsModuleTenancy
+        // already registers it as SCOPED, because it reads the scoped ITenantContext. An extra
+        // singleton registration is not merely redundant, it is invalid — DI validation
+        // rejects a singleton consuming a scoped service, which is exactly how this was found.
         services.AddDbContext<SchedulingDbContext>((provider, options) =>
         {
             // The interceptor sets app.current_tenant_id from the authenticated principal on
