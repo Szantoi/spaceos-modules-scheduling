@@ -41,9 +41,10 @@ public static class RevisionHasher
         foreach (var operation in ordered)
         {
             Append(canonical, operation.OperationId);
-            // The epic is part of the plan's identity: moving an operation to another epic
-            // changes what the plan says about the work, even if the times are untouched.
-            Append(canonical, operation.Epic.ToString());
+            // The Kernel scope is part of the plan's identity: the same times under a
+            // different epic or task say something different about the work, so the consumer
+            // must see a different hash.
+            Append(canonical, operation.Scope.ToString());
             Append(canonical, operation.ResourceKey);
             Append(canonical, Format(operation.StartMinute));
             Append(canonical, Format(operation.FinishMinute));

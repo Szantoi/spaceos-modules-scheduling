@@ -105,15 +105,32 @@ public sealed class SchedulingDbContext : DbContext
 
                     operation.Property(entity => entity.OperationId).HasColumnName("operation_id").HasMaxLength(128).IsRequired();
 
-                    // Opaque Kernel reference: stored as a plain uuid, never joined to.
-                    operation.Property(entity => entity.Epic)
-                        .HasColumnName("epic_ref")
-                        .HasConversion(reference => reference.Value, value => EpicRef.From(value))
-                        .IsRequired();
-                    // Property name (Epic), not column name (epic_ref) -- the same trap the
-                    // model/RLS sync guard caught on the revision index.
-                    operation.HasIndex("revision_id", nameof(OperationPlan.Epic))
-                        .HasDatabaseName("ix_operation_plans_revision_epic");
+                    // The Kernel scope is three opaque uuids. Stored as plain columns and
+                    // never joined to: the module records identity, it does not resolve it.
+                    // The project is denormalised onto the operation (the run carries it too)
+                    // so a row is self-contained for reads and for materialisation.
+                    operation.OwnsOne(entity => entity.Scope, scope =>
+                    {
+                        scope.Property(value => value.Project)
+                            .HasColumnName("project_ref")
+                            .HasConversion(reference => reference.Value, value => ProjectRef.From(value))
+                            .IsRequired();
+                        scope.Property(value => value.Epic)
+                            .HasColumnName("epic_ref")
+                            .HasConversion(reference => reference.Value, value => EpicRef.From(value))
+                            .IsRequired();
+                        scope.Property(value => value.Task)
+                            .HasColumnName("task_ref")
+                            .HasConversion(reference => reference.Value, value => TaskRef.From(value))
+                            .IsRequired();
+
+                        // Declared on the OWNED builder: an index over an owned property is not
+                        // reachable from the parent, so a composite (revision_id, epic_ref)
+                        // cannot be expressed here. Single-column is enough in practice — the
+                        // primary key already leads with revision_id, so a revision-scoped read
+                        // is covered, and this index serves the "everything for one epic" query.
+                        scope.HasIndex(value => value.Epic).HasDatabaseName("ix_operation_plans_epic");
+                    });
 
                     operation.Property(entity => entity.ResourceKey).HasColumnName("resource_key").HasMaxLength(128).IsRequired();
                     operation.Property(entity => entity.StartMinute).HasColumnName("start_minute").HasPrecision(18, 4).IsRequired();

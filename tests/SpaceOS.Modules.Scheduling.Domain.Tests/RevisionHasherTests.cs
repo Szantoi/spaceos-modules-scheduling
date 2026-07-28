@@ -12,10 +12,13 @@ namespace SpaceOS.Modules.Scheduling.Domain.Tests;
 /// </summary>
 public sealed class RevisionHasherTests
 {
-    private static readonly EpicRef TestEpic = EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666"));
+    private static readonly KernelWorkScope TestScope = KernelWorkScope.Create(
+        ProjectRef.From(Guid.Parse("77777777-8888-4999-8aaa-bbbbbbbbbbbb")),
+        EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666")),
+        TaskRef.From(Guid.Parse("33333333-4444-4555-8666-777777777777")));
 
     private static OperationPlan Operation(string id, decimal start = 0m, decimal finish = 60m, string resource = "r1") =>
-        new() { OperationId = id, Epic = TestEpic, ResourceKey = resource, StartMinute = start, FinishMinute = finish };
+        new() { OperationId = id, Scope = TestScope, ResourceKey = resource, StartMinute = start, FinishMinute = finish };
 
     [Fact]
     public void Enumeration_order_does_not_change_the_hash()
@@ -41,7 +44,10 @@ public sealed class RevisionHasherTests
         // times under a different epic is a different plan, and the consumer must see that.
         var moved = Operation("a") with
         {
-            Epic = EpicRef.From(Guid.Parse("99999999-8888-4777-8666-555555555555")),
+            Scope = KernelWorkScope.Create(
+                TestScope.Project,
+                EpicRef.From(Guid.Parse("99999999-8888-4777-8666-555555555555")),
+                TestScope.Task),
         };
 
         Assert.NotEqual(RevisionHasher.ComputeHash([Operation("a")]), RevisionHasher.ComputeHash([moved]));

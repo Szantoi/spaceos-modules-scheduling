@@ -61,7 +61,9 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                 {
                     operation_id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     revision_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    project_ref = table.Column<Guid>(type: "uuid", nullable: false),
                     epic_ref = table.Column<Guid>(type: "uuid", nullable: false),
+                    task_ref = table.Column<Guid>(type: "uuid", nullable: false),
                     resource_key = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     start_minute = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
                     finish_minute = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
@@ -80,10 +82,10 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "ix_operation_plans_revision_epic",
+                name: "ix_operation_plans_epic",
                 schema: "scheduling",
                 table: "operation_plans",
-                columns: new[] { "revision_id", "epic_ref" });
+                column: "epic_ref");
 
             migrationBuilder.CreateIndex(
                 name: "ux_schedule_revisions_run_sequence",
@@ -98,10 +100,9 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                 table: "schedule_runs",
                 column: "tenant_id");
 
-            // Row-level security is part of the SCHEMA, not a deploy-time afterthought: a
-            // table that exists without its policy is readable across tenants for as long as
-            // nobody notices. Calling SchedulingRlsSql.Enable() rather than pasting the SQL
-            // keeps this migration and the RLS proof reading from one source.
+            // RLS belongs to the SCHEMA, not to a deploy step: a table without its policy is
+            // readable across tenants until somebody notices. Enable() is CALLED, not pasted,
+            // so this migration and the RLS proof read from one source.
             foreach (var statement in SchedulingRlsSql.Enable())
             {
                 migrationBuilder.Sql(statement, suppressTransaction: true);
@@ -111,8 +112,6 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Policies first: an explicit disable keeps Down() readable and works even on a
-            // partially applied schema.
             foreach (var statement in SchedulingRlsSql.Disable())
             {
                 migrationBuilder.Sql(statement, suppressTransaction: true);

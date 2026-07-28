@@ -14,16 +14,20 @@ public sealed class ScheduleRunTests
 {
     private static readonly DateTimeOffset Now = new(2026, 7, 28, 10, 0, 0, TimeSpan.Zero);
     private static readonly Guid TenantId = Guid.Parse("11111111-2222-4333-8444-555555555555");
-    private static readonly EpicRef TestEpic = EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666"));
+    private static readonly ProjectRef TestProject = ProjectRef.From(Guid.Parse("77777777-8888-4999-8aaa-bbbbbbbbbbbb"));
+    private static readonly KernelWorkScope TestScope = KernelWorkScope.Create(
+        TestProject,
+        EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666")),
+        TaskRef.From(Guid.Parse("33333333-4444-4555-8666-777777777777")));
 
     private static ScheduleRun NewRun() =>
-        ScheduleRun.Open(Guid.NewGuid(), TenantId, ProjectRef.From(Guid.NewGuid()), Now);
+        ScheduleRun.Open(Guid.NewGuid(), TenantId, TestProject, Now);
 
     private static IReadOnlyList<OperationPlan> Operations(params string[] ids) =>
         [.. ids.Select((id, index) => new OperationPlan
         {
             OperationId = id,
-            Epic = TestEpic,
+            Scope = TestScope,
             ResourceKey = "resource-1",
             StartMinute = index * 60,
             FinishMinute = (index * 60) + 45,
@@ -205,11 +209,47 @@ public sealed class ScheduleRunTests
         {
             new OperationPlan
             {
-                OperationId = "a", Epic = TestEpic, ResourceKey = "r", StartMinute = 100, FinishMinute = 40,
+                OperationId = "a", Scope = TestScope, ResourceKey = "r", StartMinute = 100, FinishMinute = 40,
             },
         };
 
         Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), inverted, Now));
+    }
+
+    [Fact]
+    public void An_operation_scoped_to_another_project_is_refused()
+    {
+        // A run plans ONE project. Accepting a foreign-scoped operation would make the
+        // published revision misrepresent what was scheduled -- an error that only surfaces
+        // on the shop floor.
+        var run = NewRun();
+        var foreignScope = KernelWorkScope.Create(
+            ProjectRef.From(Guid.Parse("dddddddd-eeee-4fff-8aaa-bbbbbbbbbbbb")),
+            EpicRef.From(Guid.Parse("22222222-3333-4444-8555-666666666666")),
+            TaskRef.From(Guid.Parse("33333333-4444-4555-8666-777777777777")));
+
+        var foreign = new[]
+        {
+            new OperationPlan
+            {
+                OperationId = "a", Scope = foreignScope, ResourceKey = "r",
+                StartMinute = 0, FinishMinute = 60,
+            },
+        };
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => run.AddProposal(Guid.NewGuid(), foreign, Now));
+        Assert.Contains("plans project", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_operation_of_the_runs_own_project_is_accepted()
+    {
+        var run = NewRun();
+
+        var revision = run.AddProposal(Guid.NewGuid(), Operations("a"), Now);
+
+        Assert.Single(revision.Operations);
     }
 
     [Fact]
@@ -220,7 +260,7 @@ public sealed class ScheduleRunTests
         {
             new OperationPlan
             {
-                OperationId = "gate", Epic = TestEpic, ResourceKey = "r", StartMinute = 100, FinishMinute = 100,
+                OperationId = "gate", Scope = TestScope, ResourceKey = "r", StartMinute = 100, FinishMinute = 100,
             },
         };
 

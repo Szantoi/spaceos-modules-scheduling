@@ -107,10 +107,6 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
                                         .HasColumnType("boolean")
                                         .HasColumnName("automatically_planned");
 
-                                    b2.Property<Guid>("Epic")
-                                        .HasColumnType("uuid")
-                                        .HasColumnName("epic_ref");
-
                                     b2.Property<decimal>("FinishMinute")
                                         .HasPrecision(18, 4)
                                         .HasColumnType("numeric(18,4)")
@@ -129,13 +125,44 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Persistence.Migrations
 
                                     b2.HasKey("revision_id", "OperationId");
 
-                                    b2.HasIndex("revision_id", "Epic")
-                                        .HasDatabaseName("ix_operation_plans_revision_epic");
-
                                     b2.ToTable("operation_plans", "scheduling");
 
                                     b2.WithOwner()
                                         .HasForeignKey("revision_id");
+
+                                    b2.OwnsOne("SpaceOS.Modules.Scheduling.Domain.Schedules.KernelWorkScope", "Scope", b3 =>
+                                        {
+                                            b3.Property<Guid>("OperationPlanrevision_id")
+                                                .HasColumnType("uuid");
+
+                                            b3.Property<string>("OperationPlanOperationId")
+                                                .HasColumnType("character varying(128)");
+
+                                            b3.Property<Guid>("Epic")
+                                                .HasColumnType("uuid")
+                                                .HasColumnName("epic_ref");
+
+                                            b3.Property<Guid>("Project")
+                                                .HasColumnType("uuid")
+                                                .HasColumnName("project_ref");
+
+                                            b3.Property<Guid>("Task")
+                                                .HasColumnType("uuid")
+                                                .HasColumnName("task_ref");
+
+                                            b3.HasKey("OperationPlanrevision_id", "OperationPlanOperationId");
+
+                                            b3.HasIndex("Epic")
+                                                .HasDatabaseName("ix_operation_plans_epic");
+
+                                            b3.ToTable("operation_plans", "scheduling");
+
+                                            b3.WithOwner()
+                                                .HasForeignKey("OperationPlanrevision_id", "OperationPlanOperationId");
+                                        });
+
+                                    b2.Navigation("Scope")
+                                        .IsRequired();
                                 });
 
                             b1.Navigation("Operations");

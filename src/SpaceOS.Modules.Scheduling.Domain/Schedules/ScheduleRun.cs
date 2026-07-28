@@ -64,11 +64,27 @@ public sealed class ScheduleRun
     }
 
     /// <summary>Adds a freshly calculated revision in <see cref="ScheduleRevisionState.Proposal"/>.</summary>
+    /// <exception cref="ArgumentException">
+    /// An operation belongs to a different project than this run.
+    /// </exception>
     public ScheduleRevision AddProposal(
         Guid revisionId,
         IReadOnlyList<OperationPlan> operations,
         DateTimeOffset createdAtUtc)
     {
+        ArgumentNullException.ThrowIfNull(operations);
+
+        // A run plans ONE project. An operation scoped to another project would silently make
+        // the plan span two projects, and the published revision would misrepresent what was
+        // scheduled — the kind of error that only surfaces on the shop floor.
+        var foreign = operations.FirstOrDefault(operation => operation.Scope.Project != Project);
+        if (foreign is not null)
+        {
+            throw new ArgumentException(
+                $"Operation '{foreign.OperationId}' is scoped to project {foreign.Scope.Project}, " +
+                $"but this run plans project {Project}.", nameof(operations));
+        }
+
         var revision = ScheduleRevision.Create(revisionId, _revisions.Count + 1, operations, createdAtUtc);
         _revisions.Add(revision);
         return revision;

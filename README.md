@@ -15,6 +15,7 @@ catalogue rules: **ADR-067**; task: **PLAN-03** (EPIC-PRODUCTION-PLANNING-2026Q3
 | Effort | `EffortCalculator` | `elapsed = volume × unitMinutes`, `labour = elapsed × workforce`, `days = ceil(elapsed / workingMinutesPerDay) + extraDays` |
 | Dependencies | `DependencyBoundResolver` | start branch: fixed override > partial release > FS/SS; finish branch: fixed override > FF/SF — every bound carries its `BoundSource` |
 | Networks | `DependencyGraph` | validation (10 issue codes) + deterministic topological order |
+| Kernel scope | `KernelWorkScope` | opaque Project → FlowEpic → Task link; authorisation and revision validation stay in the published kernel handshake |
 
 Two properties are deliberate and load-bearing:
 

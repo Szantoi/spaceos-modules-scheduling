@@ -168,10 +168,10 @@ public sealed class RlsNonSuperuserIsolationTests
         await ExecuteAsAdminAsync(
             """
             INSERT INTO scheduling."operation_plans"
-                ("revision_id","operation_id","epic_ref","resource_key","start_minute","finish_minute","automatically_planned")
-            VALUES (@revision, 'op-1', @epic, 'resource-1', 0, 60, true);
+                ("revision_id","operation_id","project_ref","epic_ref","task_ref","resource_key","start_minute","finish_minute","automatically_planned")
+            VALUES (@revision, 'op-1', @project, @epic, @task, 'resource-1', 0, 60, true);
             """,
-            ("revision", revisionId), ("epic", Guid.NewGuid()));
+            ("revision", revisionId), ("project", Guid.NewGuid()), ("epic", Guid.NewGuid()), ("task", Guid.NewGuid()));
 
         return (runId, revisionId);
     }
