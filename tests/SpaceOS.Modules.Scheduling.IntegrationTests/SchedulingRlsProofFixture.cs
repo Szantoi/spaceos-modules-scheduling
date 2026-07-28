@@ -56,7 +56,16 @@ public sealed class SchedulingRlsProofFixture : IAsyncLifetime
     }
 
     /// <inheritdoc />
-    public async Task DisposeAsync() => await _inner.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        // Testcontainers can fail before assigning _inner when Docker is unavailable. Cleanup
+        // must preserve that primary environment error instead of adding a misleading null
+        // reference failure for every test in the collection.
+        if (_inner is not null)
+        {
+            await _inner.DisposeAsync();
+        }
+    }
 
     /// <summary>Reads the catalogue state of the schema's tables (as the DDL role).</summary>
     public Task<System.Collections.Generic.IReadOnlyList<CatalogRlsState>> ReadForceRlsAsync() =>

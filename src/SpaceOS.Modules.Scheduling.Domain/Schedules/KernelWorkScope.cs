@@ -6,14 +6,16 @@ namespace SpaceOS.Modules.Scheduling.Domain.Schedules;
 /// Immutable, opaque link from scheduling work to its Kernel Project, FlowEpic and Task scope.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This value object intentionally holds identifiers only. It is not a local copy of a Kernel
 /// aggregate and it is not evidence that a caller is authorised. A host must validate the
 /// published, versioned Kernel handshake before accepting this scope at an API boundary.
-/// </remarks>
-/// <remarks>
+/// </para>
+/// <para>
 /// A record CLASS rather than a record struct: the persistence layer maps this as an owned
 /// type across three columns, which Entity Framework supports for reference types only.
 /// Structural equality — the property the domain actually relies on — is identical either way.
+/// </para>
 /// </remarks>
 public sealed record KernelWorkScope
 {
