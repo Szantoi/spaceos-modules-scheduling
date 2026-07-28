@@ -17,7 +17,7 @@ public sealed class ScheduleRevision
     private ScheduleRevision(
         Guid id,
         int sequence,
-        IReadOnlyList<PlannedOperation> operations,
+        IReadOnlyList<OperationPlan> operations,
         string contentHash,
         ScheduleRevisionState state,
         DateTimeOffset createdAtUtc)
@@ -30,6 +30,21 @@ public sealed class ScheduleRevision
         CreatedAtUtc = createdAtUtc;
     }
 
+    /// <summary>
+    /// Materialisation constructor for the persistence layer only.
+    /// </summary>
+    /// <remarks>
+    /// EF cannot bind the real constructor, whose operations parameter is a navigation
+    /// rather than a scalar property. Keeping this one private means only EF (which uses
+    /// reflection) can reach it — application code still has to go through
+    /// <see cref="Create"/> and its invariants.
+    /// </remarks>
+    private ScheduleRevision()
+    {
+        Operations = [];
+        ContentHash = string.Empty;
+    }
+
     /// <summary>Revision identity.</summary>
     public Guid Id { get; }
 
@@ -37,7 +52,7 @@ public sealed class ScheduleRevision
     public int Sequence { get; }
 
     /// <summary>The scheduled operations. Immutable.</summary>
-    public IReadOnlyList<PlannedOperation> Operations { get; }
+    public IReadOnlyList<OperationPlan> Operations { get; }
 
     /// <summary>Deterministic content hash — the revision's identity on the wire.</summary>
     public string ContentHash { get; }
@@ -54,7 +69,7 @@ public sealed class ScheduleRevision
     internal static ScheduleRevision Create(
         Guid id,
         int sequence,
-        IReadOnlyList<PlannedOperation> operations,
+        IReadOnlyList<OperationPlan> operations,
         DateTimeOffset createdAtUtc)
     {
         ArgumentNullException.ThrowIfNull(operations);

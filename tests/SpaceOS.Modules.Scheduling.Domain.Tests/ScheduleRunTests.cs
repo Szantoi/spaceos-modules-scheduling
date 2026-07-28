@@ -18,8 +18,8 @@ public sealed class ScheduleRunTests
     private static ScheduleRun NewRun() =>
         ScheduleRun.Open(Guid.NewGuid(), TenantId, ProjectRef.From(Guid.NewGuid()), Now);
 
-    private static IReadOnlyList<PlannedOperation> Operations(params string[] ids) =>
-        [.. ids.Select((id, index) => new PlannedOperation
+    private static IReadOnlyList<OperationPlan> Operations(params string[] ids) =>
+        [.. ids.Select((id, index) => new OperationPlan
         {
             OperationId = id,
             ResourceKey = "resource-1",
@@ -175,7 +175,7 @@ public sealed class ScheduleRunTests
     public void A_revision_snapshot_does_not_follow_later_edits_of_the_input_list()
     {
         var run = NewRun();
-        var input = new List<PlannedOperation>(Operations("a"));
+        var input = new List<OperationPlan>(Operations("a"));
 
         var revision = run.AddProposal(Guid.NewGuid(), input, Now);
         var hashAtCreation = revision.ContentHash;
@@ -189,7 +189,7 @@ public sealed class ScheduleRunTests
     public void The_same_operation_cannot_appear_twice_in_a_revision()
     {
         var run = NewRun();
-        var duplicated = new List<PlannedOperation>(Operations("a"));
+        var duplicated = new List<OperationPlan>(Operations("a"));
         duplicated.Add(duplicated[0] with { ResourceKey = "resource-2" });
 
         Assert.Throws<ArgumentException>(() => run.AddProposal(Guid.NewGuid(), duplicated, Now));
@@ -201,7 +201,7 @@ public sealed class ScheduleRunTests
         var run = NewRun();
         var inverted = new[]
         {
-            new PlannedOperation
+            new OperationPlan
             {
                 OperationId = "a", ResourceKey = "r", StartMinute = 100, FinishMinute = 40,
             },
@@ -216,7 +216,7 @@ public sealed class ScheduleRunTests
         var run = NewRun();
         var milestone = new[]
         {
-            new PlannedOperation
+            new OperationPlan
             {
                 OperationId = "gate", ResourceKey = "r", StartMinute = 100, FinishMinute = 100,
             },

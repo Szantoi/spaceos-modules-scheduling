@@ -10,7 +10,7 @@ namespace SpaceOS.Modules.Scheduling.Domain.Schedules;
 /// (M4) converts to and from local time with the tenant's IANA zone; keeping the domain on
 /// a numeric timeline means a DST transition cannot silently shift a stored plan.
 /// </remarks>
-public sealed record PlannedOperation
+public sealed record OperationPlan
 {
     /// <summary>Stable operation identifier, unique inside the revision.</summary>
     public required string OperationId { get; init; }

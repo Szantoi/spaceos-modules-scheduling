@@ -66,10 +66,16 @@ public sealed class SchedulingRlsProofFixture : IAsyncLifetime
     public Task<(bool RolSuper, bool RolBypassRls)> ReadApplicationRoleAsync() =>
         _inner.ReadApplicationRolePropertiesAsync();
 
+    /// <summary>
+    /// A single-connection pool. Reuse is then guaranteed rather than incidental, so the
+    /// leak test cannot pass merely because it happened to get a fresh connection.
+    /// </summary>
+    public string SingleConnectionPoolString => _inner.AppConnectionString(maxPoolSize: 1);
+
     /// <summary>Opens an application-role connection with the tenant GUC already set.</summary>
-    public async Task<NpgsqlConnection> OpenAsTenantAsync(Guid? tenantId)
+    public async Task<NpgsqlConnection> OpenAsTenantAsync(Guid? tenantId, string? connectionString = null)
     {
-        var connection = new NpgsqlConnection(AppConnectionString);
+        var connection = new NpgsqlConnection(connectionString ?? AppConnectionString);
         await connection.OpenAsync();
         await NonSuperuserRlsFixture.SetTenantAsync(connection, tenantId);
         return connection;
@@ -99,7 +105,13 @@ public sealed class SchedulingRlsProofFixture : IAsyncLifetime
                 "created_at_utc" timestamptz NOT NULL
             );
 
-            CREATE TABLE scheduling."plan_operations" (
+            -- Present in the EF model and therefore required here too: two revisions numbered
+            -- 1 in the same run would make the chain ambiguous. The model/RLS sync guard keeps
+            -- the two definitions from drifting apart again.
+            CREATE UNIQUE INDEX "ux_schedule_revisions_run_sequence"
+                ON scheduling."schedule_revisions" ("run_id", "sequence");
+
+            CREATE TABLE scheduling."operation_plans" (
                 "revision_id" uuid NOT NULL REFERENCES scheduling."schedule_revisions"("id") ON DELETE CASCADE,
                 "operation_id" varchar(128) NOT NULL,
                 "resource_key" varchar(128) NOT NULL,

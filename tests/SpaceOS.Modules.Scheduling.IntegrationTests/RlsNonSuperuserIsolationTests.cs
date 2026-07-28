@@ -80,17 +80,23 @@ public sealed class RlsNonSuperuserIsolationTests
     [Fact]
     public async Task A_pooled_connection_does_not_leak_the_previous_tenant()
     {
-        // The interceptor resets the GUC when a pooled connection is reused. If that reset
-        // ever regressed, a later request would silently read the previous tenant's rows --
-        // the worst possible failure mode, because nothing errors.
+        // MaxPoolSize=1 forces the SECOND open to reuse the very connection the first one
+        // set a tenant on. Without that, this test could pass simply by getting a fresh
+        // physical connection -- proving nothing.
+        //
+        // Note on scope: this raw-SQL path measures Npgsql's own pool reset (DISCARD ALL),
+        // not the hosting interceptor. Both matter, and the weaker of the two decides:
+        // if the pool did not reset the GUC, a later request would silently read the
+        // previous tenant's rows -- the worst failure mode, because nothing errors.
         var runA = await SeedRunAsync(_fixture.TenantA);
+        var pool = _fixture.SingleConnectionPoolString;
 
-        await using (var first = await _fixture.OpenAsTenantAsync(_fixture.TenantA))
+        await using (var first = await _fixture.OpenAsTenantAsync(_fixture.TenantA, pool))
         {
             Assert.Contains(runA, await ReadRunIdsAsync(first));
         }
 
-        await using var reused = new NpgsqlConnection(_fixture.AppConnectionString);
+        await using var reused = new NpgsqlConnection(pool);
         await reused.OpenAsync();
         Assert.Empty(await ReadRunIdsAsync(reused));
     }
@@ -99,7 +105,7 @@ public sealed class RlsNonSuperuserIsolationTests
     [Fact]
     public async Task Child_rows_follow_their_parent_run_tenant()
     {
-        var (runA, revisionA) = await SeedRunWithRevisionAsync(_fixture.TenantA);
+        var (_, revisionA) = await SeedRunWithRevisionAsync(_fixture.TenantA);
         var (_, revisionB) = await SeedRunWithRevisionAsync(_fixture.TenantB);
 
         await using var asTenantA = await _fixture.OpenAsTenantAsync(_fixture.TenantA);
@@ -110,11 +116,9 @@ public sealed class RlsNonSuperuserIsolationTests
 
         // Two hops deep: operations reach their tenant through the revision's run.
         var operationRevisions = await ReadIdsAsync(
-            asTenantA, "SELECT \"revision_id\" FROM scheduling.\"plan_operations\";");
+            asTenantA, "SELECT \"revision_id\" FROM scheduling.\"operation_plans\";");
         Assert.Contains(revisionA, operationRevisions);
         Assert.DoesNotContain(revisionB, operationRevisions);
-
-        Assert.NotEqual(Guid.Empty, runA);
     }
 
     [Fact]
@@ -163,7 +167,7 @@ public sealed class RlsNonSuperuserIsolationTests
 
         await ExecuteAsAdminAsync(
             """
-            INSERT INTO scheduling."plan_operations"
+            INSERT INTO scheduling."operation_plans"
                 ("revision_id","operation_id","resource_key","start_minute","finish_minute","automatically_planned")
             VALUES (@revision, 'op-1', 'resource-1', 0, 60, true);
             """,

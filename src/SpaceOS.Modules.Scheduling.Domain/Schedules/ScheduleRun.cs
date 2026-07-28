@@ -66,7 +66,7 @@ public sealed class ScheduleRun
     /// <summary>Adds a freshly calculated revision in <see cref="ScheduleRevisionState.Proposal"/>.</summary>
     public ScheduleRevision AddProposal(
         Guid revisionId,
-        IReadOnlyList<PlannedOperation> operations,
+        IReadOnlyList<OperationPlan> operations,
         DateTimeOffset createdAtUtc)
     {
         var revision = ScheduleRevision.Create(revisionId, _revisions.Count + 1, operations, createdAtUtc);

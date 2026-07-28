@@ -29,7 +29,7 @@ public static class RevisionHasher
 {
     /// <summary>Hashes the operation set of a revision.</summary>
     /// <returns>Lowercase hex SHA-256 of the canonical representation.</returns>
-    public static string ComputeHash(IEnumerable<PlannedOperation> operations)
+    public static string ComputeHash(IEnumerable<OperationPlan> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);
 

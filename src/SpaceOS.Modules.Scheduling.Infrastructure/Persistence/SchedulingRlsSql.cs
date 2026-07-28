@@ -21,7 +21,7 @@ public static class SchedulingRlsSql
     public const string RevisionsTable = "schedule_revisions";
 
     /// <summary>Operations: tenant follows the revision's run — two hops.</summary>
-    public const string OperationsTable = "plan_operations";
+    public const string OperationsTable = "operation_plans";
 
     /// <summary>Every table the proof suite must find FORCE-protected.</summary>
     public static IReadOnlyList<string> AllTables => [RunsTable, RevisionsTable, OperationsTable];

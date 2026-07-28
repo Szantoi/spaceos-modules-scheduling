@@ -67,8 +67,11 @@ public sealed class SchedulingDbContext : DbContext
             // same stance as the RLS predicate.
             run.HasQueryFilter(entity => entity.TenantId == _currentTenantId());
 
-            run.Navigation(entity => entity.Revisions).UsePropertyAccessMode(PropertyAccessMode.Field);
-            run.OwnsMany<ScheduleRevision>("_revisions", revision =>
+            // Mapped through the public navigation, not the "_revisions" field name: naming
+            // the field left EF also discovering the read-only Revisions property, and it
+            // could not tell the two apart. Field ACCESS is still what happens at runtime
+            // (see the Navigation call below), so the aggregate keeps its private list.
+            run.OwnsMany(entity => entity.Revisions, revision =>
             {
                 revision.ToTable("schedule_revisions");
                 revision.WithOwner().HasForeignKey("run_id");
@@ -87,11 +90,17 @@ public sealed class SchedulingDbContext : DbContext
                     .HasMaxLength(32)
                     .IsRequired();
 
-                revision.HasIndex("run_id", "sequence").IsUnique().HasDatabaseName("ux_schedule_revisions_run_sequence");
+                // Property names, not column names: "run_id" is the shadow FK property
+                // declared above, but the sequence is the CLR property Sequence. Passing the
+                // column name here throws at model build -- which nothing noticed until the
+                // model/RLS sync guard started building the model.
+                revision.HasIndex("run_id", nameof(ScheduleRevision.Sequence))
+                    .IsUnique()
+                    .HasDatabaseName("ux_schedule_revisions_run_sequence");
 
                 revision.OwnsMany(entity => entity.Operations, operation =>
                 {
-                    operation.ToTable("plan_operations");
+                    operation.ToTable("operation_plans");
                     operation.WithOwner().HasForeignKey("revision_id");
 
                     operation.Property(entity => entity.OperationId).HasColumnName("operation_id").HasMaxLength(128).IsRequired();
@@ -100,9 +109,13 @@ public sealed class SchedulingDbContext : DbContext
                     operation.Property(entity => entity.FinishMinute).HasColumnName("finish_minute").HasPrecision(18, 4).IsRequired();
                     operation.Property(entity => entity.AutomaticallyPlanned).HasColumnName("automatically_planned").IsRequired();
 
-                    operation.HasKey("revision_id", "operation_id");
+                    // Same rule as the index above: the shadow FK is named "revision_id",
+                    // but the operation id is the CLR property OperationId.
+                    operation.HasKey("revision_id", nameof(OperationPlan.OperationId));
                 });
             });
+
+            run.Navigation(entity => entity.Revisions).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
     }
 }

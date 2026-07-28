@@ -12,7 +12,7 @@ namespace SpaceOS.Modules.Scheduling.Domain.Tests;
 /// </summary>
 public sealed class RevisionHasherTests
 {
-    private static PlannedOperation Operation(string id, decimal start = 0m, decimal finish = 60m, string resource = "r1") =>
+    private static OperationPlan Operation(string id, decimal start = 0m, decimal finish = 60m, string resource = "r1") =>
         new() { OperationId = id, ResourceKey = resource, StartMinute = start, FinishMinute = finish };
 
     [Fact]
