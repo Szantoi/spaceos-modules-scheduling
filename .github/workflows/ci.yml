@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ADR-067 / ADR-069 §3: the core must stay industry-neutral. Runs before the
+      # build so a vocabulary leak fails fast and cheaply.
+      - name: Industry-vocabulary guard
+        run: bash build/check-core-vocabulary.sh
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      # The Doorstar compatibility gate lives inside this run: the fixture's SHA-256 pin
+      # is verified at test start, so a silently changed input pack fails the build
+      # rather than quietly redefining the contract.
+      - name: Test (includes the pinned Doorstar compatibility gate)
+        run: dotnet test --no-build --configuration Release --verbosity normal

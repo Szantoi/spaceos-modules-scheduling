@@ -1,0 +1,135 @@
+{
+  "$schema": "https://joinerytech.hu/contracts/doorstar-planning-input-pack/v1",
+  "schemaVersion": "1.0",
+  "tenantSlug": "doorstar",
+  "timezone": "Europe/Budapest",
+  "purpose": "Read-only fixture pack for PLAN-01/PLAN-02 and later C# compatibility tests. It is not an import command or an approved production calendar.",
+  "sourceProvenance": {
+    "unitTimeCatalogue": {
+      "fileName": "Egység_idő.xlsx",
+      "sheetName": "Feladat_Egység_idő",
+      "sha256": "7665FA96AC35BCD309A85CE9FA03CDB31856742EA10C1A1F591E869049BC4034"
+    },
+    "legacyWorkflowWorkbook": {
+      "fileName": "ProjektSzám - ProjektNév - 02 - Folyamatok.xlsm",
+      "sha256": "1AC48BCE412328E9D27CD65E36389E4FC3BC5E809B6EC8F475DBF903CE7C779A"
+    },
+    "dataMinimization": "No customer, order, employee or workstation-owner data is included."
+  },
+  "legacyCalculationVectors": [
+    {
+      "id": "legacy-volume-workforce",
+      "input": { "volume": 20, "unitMinutes": 15, "workforce": 2, "extraDays": 0, "workingMinutesPerDay": 480 },
+      "expected": { "estimatedDurationMinutes": 300, "estimatedLabourMinutes": 600, "plannedWorkingDays": 1, "eligibleForAutomaticPlanning": true }
+    },
+    {
+      "id": "legacy-extra-day",
+      "input": { "volume": 32, "unitMinutes": 30, "workforce": 1, "extraDays": 1, "workingMinutesPerDay": 480 },
+      "expected": { "estimatedDurationMinutes": 960, "estimatedLabourMinutes": 960, "plannedWorkingDays": 3, "eligibleForAutomaticPlanning": true }
+    },
+    {
+      "id": "legacy-missing-standard",
+      "input": { "volume": 10, "unitMinutes": null, "workforce": null, "extraDays": 2, "workingMinutesPerDay": 480 },
+      "expected": { "estimatedDurationMinutes": 0, "estimatedLabourMinutes": 0, "plannedWorkingDays": 2, "eligibleForAutomaticPlanning": false, "missingFields": ["unitMinutes", "workforce"] }
+    }
+  ],
+  "dependencyCompatibilityVectors": [
+    {
+      "id": "fs-positive-lag",
+      "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 140, "lagMinutes": 5 },
+      "expected": { "earliestStartMinute": 145, "startSource": "dependency" }
+    },
+    {
+      "id": "ss-positive-lag",
+      "input": { "type": "SS", "predecessorStartMinute": 100, "predecessorFinishMinute": 140, "lagMinutes": 5 },
+      "expected": { "earliestStartMinute": 105, "startSource": "dependency" }
+    },
+    {
+      "id": "ff-positive-lag",
+      "input": { "type": "FF", "predecessorStartMinute": 100, "predecessorFinishMinute": 140, "lagMinutes": 5 },
+      "expected": { "earliestFinishMinute": 145, "finishSource": "dependency" }
+    },
+    {
+      "id": "sf-positive-lag",
+      "input": { "type": "SF", "predecessorStartMinute": 100, "predecessorFinishMinute": 140, "lagMinutes": 5 },
+      "expected": { "earliestFinishMinute": 105, "finishSource": "dependency" }
+    },
+    {
+      "id": "partial-release-precedes-fs",
+      "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "lagMinutes": 0, "partialReleaseMinute": 150 },
+      "expected": { "earliestStartMinute": 150, "startSource": "partial_release" }
+    },
+    {
+      "id": "fixed-bounds-override-derived-bounds",
+      "input": { "type": "FS", "predecessorStartMinute": 100, "predecessorFinishMinute": 200, "partialReleaseMinute": 150, "fixedStartMinute": 120, "fixedFinishMinute": 280 },
+      "expected": { "earliestStartMinute": 120, "earliestFinishMinute": 280, "startSource": "fixed_override", "finishSource": "fixed_override" }
+    }
+  ],
+  "operationStandardSamples": [
+    {
+      "sourceRow": 44,
+      "sourceTaskKey": "GyV-B.06",
+      "operationLabel": "Fóliázás",
+      "workflowGroup": "Boritás",
+      "sourceResourceLabel": "Fóliázó",
+      "unitSeconds": 340,
+      "workforce": 2,
+      "predecessorSourceTaskKey": "GyV-B.05",
+      "dependencyType": "SS",
+      "partialReleaseThreshold": 1.0,
+      "qualifiers": {}
+    },
+    {
+      "sourceRow": 102,
+      "sourceTaskKey": "GyV-L.06",
+      "operationLabel": "Préselés",
+      "workflowGroup": "Ajtólap",
+      "sourceResourceLabel": "Asztalos",
+      "unitSeconds": 537,
+      "workforce": 3,
+      "predecessorSourceTaskKey": "GyV-L.05",
+      "dependencyType": "SS",
+      "partialReleaseThreshold": 1.0,
+      "qualifiers": { "sourceLookupTable": "Ajtólap", "sourceLookupColumn": "Ajtólap száma" }
+    },
+    {
+      "sourceRow": 118,
+      "sourceTaskKey": "GyV-T.04",
+      "operationLabel": "Tok kapocs",
+      "workflowGroup": "Tok",
+      "sourceResourceLabel": "Összeszerelő",
+      "unitSeconds": 125,
+      "workforce": 1,
+      "predecessorSourceTaskKey": "GyV-T.03",
+      "dependencyType": "FS",
+      "partialReleaseThreshold": 1.0,
+      "qualifiers": { "sourceLookupTable": "Szabászat", "sourceLookupColumn": "Alkatrész Megnevezése", "sourceLookupValue": "Tokmag" }
+    }
+  ],
+  "calendarDraft": {
+    "capacityPolicy": "integer",
+    "calendarProfile": {
+      "profileKey": "doorstar-cnc-standard-day-shift",
+      "revision": "draft-2026-07-27",
+      "effectiveFrom": null,
+      "effectiveTo": null,
+      "changePolicy": "new_revision_required"
+    },
+    "resources": [
+      {
+        "resourceKey": "CNC",
+        "capacity": 1,
+        "sourceRevision": "doorstar-calendar-draft-2026-07-27",
+        "shifts": [
+          { "weekday": "monday", "start": "07:00", "end": "16:00", "breaks": [{ "start": "09:00", "end": "09:20" }, { "start": "12:00", "end": "12:30" }, { "start": "14:00", "end": "14:10" }] },
+          { "weekday": "tuesday", "start": "07:00", "end": "16:00", "breaks": [{ "start": "09:00", "end": "09:20" }, { "start": "12:00", "end": "12:30" }, { "start": "14:00", "end": "14:10" }] },
+          { "weekday": "wednesday", "start": "07:00", "end": "16:00", "breaks": [{ "start": "09:00", "end": "09:20" }, { "start": "12:00", "end": "12:30" }, { "start": "14:00", "end": "14:10" }] },
+          { "weekday": "thursday", "start": "07:00", "end": "16:00", "breaks": [{ "start": "09:00", "end": "09:20" }, { "start": "12:00", "end": "12:30" }, { "start": "14:00", "end": "14:10" }] },
+          { "weekday": "friday", "start": "07:00", "end": "16:00", "breaks": [{ "start": "09:00", "end": "09:20" }, { "start": "12:00", "end": "12:30" }, { "start": "14:00", "end": "14:10" }] }
+        ]
+      }
+    ],
+    "requiredConfirmation": ["all working weekdays", "all shift and break times", "resource capacities", "closures, maintenance and overtime exceptions"]
+  },
+  "approvalWorkflow": "platform_tenant_policy_required"
+}

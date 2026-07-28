@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Domain", "src\SpaceOS.Modules.Scheduling.Domain\SpaceOS.Modules.Scheduling.Domain.csproj", "{51524C16-78D1-4C9A-AC28-9A210306CD3D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{CA03BC8D-563F-4D91-99A8-1603013D3E4F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Domain.Tests", "tests\SpaceOS.Modules.Scheduling.Domain.Tests\SpaceOS.Modules.Scheduling.Domain.Tests.csproj", "{6CEDEE5D-A865-45C3-939E-F19C336CA225}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{51524C16-78D1-4C9A-AC28-9A210306CD3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51524C16-78D1-4C9A-AC28-9A210306CD3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51524C16-78D1-4C9A-AC28-9A210306CD3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51524C16-78D1-4C9A-AC28-9A210306CD3D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6CEDEE5D-A865-45C3-939E-F19C336CA225}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6CEDEE5D-A865-45C3-939E-F19C336CA225}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6CEDEE5D-A865-45C3-939E-F19C336CA225}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6CEDEE5D-A865-45C3-939E-F19C336CA225}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{51524C16-78D1-4C9A-AC28-9A210306CD3D} = {793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}
+		{6CEDEE5D-A865-45C3-939E-F19C336CA225} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
+	EndGlobalSection
+EndGlobal

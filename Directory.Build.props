@@ -1,0 +1,24 @@
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- A warning that survives is a warning nobody reads. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <NeutralLanguage>en</NeutralLanguage>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!-- Public API of the shipped library must be documented; test methods are named as
+       sentences and would only gain noise from XML comments.
+       The condition is on the project NAME, not on $(IsTestProject): this file is
+       imported before the test project sets that property, so it would always be empty. -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>
