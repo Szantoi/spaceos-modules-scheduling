@@ -404,6 +404,19 @@ components:
         ruleSetLabel:
           type: string
           description: Provenance of the rule set in force.
+        capacityConflicts:
+          type: array
+          items: { $ref: '#/components/schemas/CapacityConflict' }
+          description: |
+            Where this plan would collide with work that is ALREADY COMMITTED on its resources.
+            The plan's own operations always respect capacity — the scheduler saw to that — so
+            this reports the collision the scheduler could not see: reservations made by other
+            runs and other work.
+
+            Computed by the same detector as /resources/{key}/overload, so the two views cannot
+            disagree about the same afternoon. Empty when the plan fits beside committed work;
+            also empty when the plan carries no dates (see startUtc), because an undated plan
+            cannot be compared with anything on the clock.
       required:
         - runId
         - revisionHash
@@ -413,6 +426,34 @@ components:
         - dependencies
         - calendarRevisions
         - ruleSetLabel
+        - capacityConflicts
+
+    CapacityConflict:
+      type: object
+      description: A period where the plan plus committed work exceeds a resource's capacity.
+      properties:
+        resourceKey: { type: string }
+        startUtc: { type: string, format: date-time }
+        endUtc:
+          type: string
+          format: date-time
+          description: Exclusive end of the conflicting period.
+        peakDemand:
+          type: number
+          description: Highest simultaneous demand inside the period.
+        capacity:
+          type: number
+          description: Capacity the demand was measured against, from the pinned calendar revision.
+        peakExcess:
+          type: number
+          description: peakDemand minus capacity — how bad it gets at worst.
+      required:
+        - resourceKey
+        - startUtc
+        - endUtc
+        - peakDemand
+        - capacity
+        - peakExcess
 
     DayRange:
       type: object

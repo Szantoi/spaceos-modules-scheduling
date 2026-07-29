@@ -148,10 +148,14 @@ public static class SchedulingProjections
     /// Operations resolved to real instants against the PINNED calendars, keyed by operation id;
     /// empty when the revision predates the timeline origin and cannot be dated.
     /// </param>
+    /// <param name="capacityConflicts">
+    /// Where the plan would collide with already committed work; empty when it fits beside it.
+    /// </param>
     public static ProposalDto ToProposal(
         this ScheduleRevision revision,
         Guid runId,
-        IReadOnlyDictionary<string, DatedOperation>? dates = null) => new(
+        IReadOnlyDictionary<string, DatedOperation>? dates = null,
+        IReadOnlyList<ResourceOverload>? capacityConflicts = null) => new(
         runId,
         revision.ContentHash,
         Code(revision.State),
@@ -162,7 +166,17 @@ public static class SchedulingProjections
                 : null))],
         [.. revision.Dependencies.Select(edge => edge.ToDto())],
         revision.CalendarRevisions,
-        PartialReleaseContract.ContractLabel);
+        PartialReleaseContract.ContractLabel,
+        [.. (capacityConflicts ?? []).Select(conflict => conflict.ToDto())]);
+
+    /// <summary>Projects one capacity conflict of a proposal.</summary>
+    public static CapacityConflictDto ToDto(this ResourceOverload conflict) => new(
+        conflict.ResourceKey,
+        Utc(conflict.Span.StartUtc),
+        Utc(conflict.Span.EndUtc),
+        conflict.Span.PeakDemand,
+        conflict.Span.Capacity,
+        conflict.Span.PeakExcess);
 
     /// <summary>Projects a calendar revision as a list entry.</summary>
     public static ResourceCalendarDto ToDto(this ResourceCalendarRevision calendar) => new(

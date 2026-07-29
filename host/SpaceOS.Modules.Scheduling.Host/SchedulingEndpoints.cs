@@ -149,7 +149,12 @@ public static class SchedulingEndpoints
             .Resolve(revision, pinned, DatingHorizon)
             .ToDictionary(dated => dated.OperationId, StringComparer.Ordinal);
 
-        return Results.Ok(revision.ToProposal(run.Id, dates));
+        // What the plan would collide with: its own operations plus everything already reserved
+        // on those resources. The plan alone respects capacity — the solver saw to that — so
+        // reporting only that would be an empty answer dressed up as an answer.
+        var conflicts = await CapacityConflictsAsync(database, dates, pinned, cancellationToken);
+
+        return Results.Ok(revision.ToProposal(run.Id, dates, conflicts));
     }
 
     private static async Task<IResult> GetResourcesAsync(
@@ -264,6 +269,58 @@ public static class SchedulingEndpoints
     /// perfectly valid long plan.
     /// </remarks>
     private static readonly Duration DatingHorizon = Duration.FromDays(365);
+
+    /// <summary>Detects where the dated plan collides with committed reservations.</summary>
+    private static async Task<IReadOnlyList<ResourceOverload>> CapacityConflictsAsync(
+        SchedulingDbContext database,
+        IReadOnlyDictionary<string, DatedOperation> dates,
+        IReadOnlyDictionary<string, ResourceCalendarRevision> pinnedCalendars,
+        CancellationToken cancellationToken)
+    {
+        if (dates.Count == 0)
+        {
+            // An undated plan cannot be compared with anything on the clock. Returning an empty
+            // conflict list would read as "no conflicts", so the caller sees the dates are null
+            // and knows the question was not answered.
+            return [];
+        }
+
+        var demands = new Dictionary<string, List<CapacityDemand>>(StringComparer.Ordinal);
+        var capacities = new Dictionary<string, decimal>(StringComparer.Ordinal);
+
+        foreach (var (resourceKey, calendar) in pinnedCalendars)
+        {
+            demands[resourceKey] = [];
+            capacities[resourceKey] = calendar.Capacity;
+        }
+
+        foreach (var dated in dates.Values)
+        {
+            if (demands.TryGetValue(dated.ResourceKey, out var bucket))
+            {
+                bucket.Add(new CapacityDemand(
+                    dated.StartUtc.ToDateTimeOffset(), dated.FinishUtc.ToDateTimeOffset(), 1m));
+            }
+        }
+
+        var resourceKeys = demands.Keys.ToArray();
+        var reservations = await database.CapacityReservations
+            .AsNoTracking()
+            .Where(reservation => resourceKeys.Contains(reservation.ResourceKey))
+            .ToListAsync(cancellationToken);
+
+        foreach (var reservation in reservations.Where(item => item.OccupiesCapacity))
+        {
+            if (demands.TryGetValue(reservation.ResourceKey, out var bucket))
+            {
+                bucket.Add(new CapacityDemand(reservation.StartUtc, reservation.EndUtc, reservation.Quantity));
+            }
+        }
+
+        return ProposalOverloadAnalyzer.Detect(
+            demands.ToDictionary(entry => entry.Key, entry => (IReadOnlyList<CapacityDemand>)entry.Value, StringComparer.Ordinal),
+            capacities);
+    }
 
     /// <summary>Loads exactly the calendar revisions a plan was pinned to.</summary>
     /// <remarks>

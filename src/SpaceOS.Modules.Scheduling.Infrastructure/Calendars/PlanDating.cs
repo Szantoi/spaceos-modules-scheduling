@@ -9,9 +9,14 @@ namespace SpaceOS.Modules.Scheduling.Infrastructure.Calendars;
 
 /// <summary>One operation's plan resolved to real instants.</summary>
 /// <param name="OperationId">The operation.</param>
+/// <param name="ResourceKey">Resource it runs on — carried so callers need not re-join the plan.</param>
 /// <param name="StartUtc">When it starts.</param>
 /// <param name="FinishUtc">When its working time is complete.</param>
-public sealed record DatedOperation(string OperationId, Instant StartUtc, Instant FinishUtc);
+public sealed record DatedOperation(
+    string OperationId,
+    string ResourceKey,
+    Instant StartUtc,
+    Instant FinishUtc);
 
 /// <summary>
 /// Resolves a stored revision's working minutes into dates, using the calendars the revision
@@ -90,7 +95,7 @@ public static class PlanDating
                     ? timeline.EndAtWorkingMinute(operation.FinishMinute)
                     : start;
 
-                return new DatedOperation(operation.OperationId, start, finish);
+                return new DatedOperation(operation.OperationId, operation.ResourceKey, start, finish);
             }),
         ];
     }

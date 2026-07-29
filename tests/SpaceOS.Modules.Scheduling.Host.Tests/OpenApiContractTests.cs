@@ -186,6 +186,7 @@ public sealed class OpenApiContractTests : IClassFixture<SchedulingHostFactory>
         { "ResourceCalendar", nameof(ResourceCalendarDto) },
         { "ResourceCalendarDetail", nameof(ResourceCalendarDetailDto) },
         { "OverloadSpan", nameof(OverloadSpanDto) },
+        { "CapacityConflict", nameof(CapacityConflictDto) },
         { "OperationStandardSummary", nameof(OperationStandardSummaryDto) },
         { "StandardRevision", nameof(StandardRevisionDto) },
     };

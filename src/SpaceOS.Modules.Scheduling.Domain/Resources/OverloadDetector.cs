@@ -21,8 +21,14 @@ public sealed record OverloadSpan(
     public decimal PeakExcess => PeakDemand - Capacity;
 }
 
+/// <summary>One interval of demand on a resource, whatever produced it.</summary>
+/// <param name="StartUtc">Inclusive start.</param>
+/// <param name="EndUtc">Exclusive end.</param>
+/// <param name="Quantity">How much capacity it consumes.</param>
+public sealed record CapacityDemand(DateTimeOffset StartUtc, DateTimeOffset EndUtc, decimal Quantity);
+
 /// <summary>
-/// Finds the periods where reservations oversubscribe a resource.
+/// Finds the periods where demand oversubscribes a resource.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -49,14 +55,37 @@ public static class OverloadDetector
         decimal capacity)
     {
         ArgumentNullException.ThrowIfNull(reservations);
+
+        // Released and expired reservations hold nothing. Including them would report an
+        // overload that the schedule has already resolved.
+        return Detect(
+            reservations
+                .Where(reservation => reservation.OccupiesCapacity)
+                .Select(reservation => new CapacityDemand(
+                    reservation.StartUtc, reservation.EndUtc, reservation.Quantity)),
+            capacity);
+    }
+
+    /// <summary>Detects overload periods from raw demand intervals.</summary>
+    /// <remarks>
+    /// The same sweep, one level lower, so a PLANNED operation can be measured against the same
+    /// rule as a committed reservation. Two detectors would eventually disagree about what
+    /// "overloaded" means, and the proposal view would contradict the overload endpoint.
+    /// </remarks>
+    /// <param name="demands">Demand intervals on a single resource.</param>
+    /// <param name="capacity">Parallel capacity from the resource's calendar revision.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Capacity is negative.</exception>
+    public static IReadOnlyList<OverloadSpan> Detect(
+        IEnumerable<CapacityDemand> demands,
+        decimal capacity)
+    {
+        ArgumentNullException.ThrowIfNull(demands);
         if (capacity < 0m)
         {
             throw new ArgumentOutOfRangeException(nameof(capacity), capacity, "Capacity cannot be negative.");
         }
 
-        // Released and expired reservations hold nothing. Including them would report an
-        // overload that the schedule has already resolved.
-        var occupying = reservations.Where(reservation => reservation.OccupiesCapacity).ToArray();
+        var occupying = demands.ToArray();
         if (occupying.Length == 0)
         {
             return [];
@@ -65,7 +94,7 @@ public static class OverloadDetector
         // Every start and end is a point where demand can change; between two adjacent points
         // demand is constant, so the whole timeline is covered by these segments alone.
         var boundaries = occupying
-            .SelectMany(reservation => new[] { reservation.StartUtc, reservation.EndUtc })
+            .SelectMany(demand => new[] { demand.StartUtc, demand.EndUtc })
             .Distinct()
             .OrderBy(instant => instant)
             .ToArray();
@@ -83,8 +112,8 @@ public static class OverloadDetector
             // Half-open [start, end): a reservation ending exactly when another starts is a
             // handover, not an overlap — the same rule CapacityReservation.ConflictsWith uses.
             var demand = occupying
-                .Where(reservation => reservation.StartUtc <= segmentStart && reservation.EndUtc > segmentStart)
-                .Sum(reservation => reservation.Quantity);
+                .Where(item => item.StartUtc <= segmentStart && item.EndUtc > segmentStart)
+                .Sum(item => item.Quantity);
 
             if (demand > capacity)
             {

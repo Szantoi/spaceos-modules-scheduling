@@ -110,6 +110,10 @@ public sealed record DependencyEdgeDto(
 /// <param name="Dependencies">The precedence network with resolved bounds.</param>
 /// <param name="CalendarRevisions">Calendar revision used per resource — the plan is only reproducible with it.</param>
 /// <param name="RuleSetLabel">Provenance of the rule set in force, e.g. doorstar-contract-v1 (final).</param>
+/// <param name="CapacityConflicts">
+/// Where this plan would collide with ALREADY COMMITTED work. Empty when the plan fits beside
+/// everything reserved on its resources.
+/// </param>
 public sealed record ProposalDto(
     Guid RunId,
     string RevisionHash,
@@ -118,7 +122,23 @@ public sealed record ProposalDto(
     IReadOnlyList<OperationPlanDto> Operations,
     IReadOnlyList<DependencyEdgeDto> Dependencies,
     IReadOnlyDictionary<string, int> CalendarRevisions,
-    string RuleSetLabel);
+    string RuleSetLabel,
+    IReadOnlyList<CapacityConflictDto> CapacityConflicts);
+
+/// <summary>A period where the plan plus committed work exceeds a resource's capacity.</summary>
+/// <param name="ResourceKey">The oversubscribed resource.</param>
+/// <param name="StartUtc">ISO-8601 UTC start of the conflict.</param>
+/// <param name="EndUtc">ISO-8601 UTC exclusive end.</param>
+/// <param name="PeakDemand">Highest simultaneous demand inside the period.</param>
+/// <param name="Capacity">Capacity it was measured against.</param>
+/// <param name="PeakExcess">How much demand exceeds capacity at its worst.</param>
+public sealed record CapacityConflictDto(
+    string ResourceKey,
+    string StartUtc,
+    string EndUtc,
+    decimal PeakDemand,
+    decimal Capacity,
+    decimal PeakExcess);
 
 /// <summary>A resource and the calendar revision currently in force.</summary>
 /// <param name="ResourceKey">Stable resource key.</param>
