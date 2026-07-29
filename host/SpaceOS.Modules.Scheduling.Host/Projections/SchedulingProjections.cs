@@ -7,6 +7,7 @@ using SpaceOS.Modules.Scheduling.Domain.Resources;
 using SpaceOS.Modules.Scheduling.Domain.Schedules;
 using SpaceOS.Modules.Scheduling.Domain.Standards;
 using SpaceOS.Modules.Scheduling.Host.Contracts;
+using SpaceOS.Modules.Scheduling.Infrastructure.Calendars;
 
 namespace SpaceOS.Modules.Scheduling.Host.Projections;
 
@@ -116,7 +117,7 @@ public static class SchedulingProjections
         new(scope.Project.Value, scope.Epic.Value, scope.Task.Value);
 
     /// <summary>Projects one scheduled operation, lineage included.</summary>
-    public static OperationPlanDto ToDto(this OperationPlan operation) => new(
+    public static OperationPlanDto ToDto(this OperationPlan operation, DatedOperation? dated = null) => new(
         operation.OperationId,
         operation.Scope.ToDto(),
         operation.ResourceKey,
@@ -124,7 +125,9 @@ public static class SchedulingProjections
         operation.FinishMinute,
         operation.AutomaticallyPlanned,
         operation.StandardRevision,
-        operation.SourceRevisions);
+        operation.SourceRevisions,
+        dated is { } dates ? Utc(dates.StartUtc.ToDateTimeOffset()) : null,
+        dated is { } finish ? Utc(finish.FinishUtc.ToDateTimeOffset()) : null);
 
     /// <summary>Projects one resolved precedence edge.</summary>
     public static DependencyEdgeDto ToDto(this PlannedDependency edge) => new(
@@ -139,12 +142,24 @@ public static class SchedulingProjections
         LagKindCode(edge.LagKind));
 
     /// <summary>Projects a revision as the Doorstar proposal payload.</summary>
-    public static ProposalDto ToProposal(this ScheduleRevision revision, Guid runId) => new(
+    /// <param name="revision">The revision in force.</param>
+    /// <param name="runId">Run the revision belongs to.</param>
+    /// <param name="dates">
+    /// Operations resolved to real instants against the PINNED calendars, keyed by operation id;
+    /// empty when the revision predates the timeline origin and cannot be dated.
+    /// </param>
+    public static ProposalDto ToProposal(
+        this ScheduleRevision revision,
+        Guid runId,
+        IReadOnlyDictionary<string, DatedOperation>? dates = null) => new(
         runId,
         revision.ContentHash,
         Code(revision.State),
         Utc(revision.CreatedAtUtc),
-        [.. revision.Operations.Select(operation => operation.ToDto())],
+        [.. revision.Operations.Select(operation =>
+            operation.ToDto(dates is not null && dates.TryGetValue(operation.OperationId, out var dated)
+                ? dated
+                : null))],
         [.. revision.Dependencies.Select(edge => edge.ToDto())],
         revision.CalendarRevisions,
         PartialReleaseContract.ContractLabel);

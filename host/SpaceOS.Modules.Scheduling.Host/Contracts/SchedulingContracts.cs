@@ -59,6 +59,11 @@ public sealed record ScheduleRunSummaryDto(
 /// The consumer's own provenance, reflected back byte-for-byte. The platform stores these
 /// values and never resolves them (PLAN-03 M3 contract input).
 /// </param>
+/// <param name="StartUtc">
+/// ISO-8601 UTC start, resolved against the calendar revisions this plan is PINNED to; null on
+/// revisions computed before the timeline origin was recorded.
+/// </param>
+/// <param name="FinishUtc">ISO-8601 UTC instant the operation's working time is complete.</param>
 public sealed record OperationPlanDto(
     string OperationId,
     WorkScopeDto Scope,
@@ -67,7 +72,9 @@ public sealed record OperationPlanDto(
     decimal FinishMinute,
     bool AutomaticallyPlanned,
     int? StandardRevision,
-    IReadOnlyDictionary<string, string> SourceRevisions);
+    IReadOnlyDictionary<string, string> SourceRevisions,
+    string? StartUtc,
+    string? FinishUtc);
 
 /// <summary>One dependency edge with the attribution the planner needs.</summary>
 /// <param name="PredecessorOperationId">Predecessor operation.</param>

@@ -10,6 +10,8 @@ using SpaceOS.Modules.Scheduling.Domain.Resources;
 using SpaceOS.Modules.Scheduling.Domain.Schedules;
 using SpaceOS.Modules.Scheduling.Host.Contracts;
 using SpaceOS.Modules.Scheduling.Host.Projections;
+using NodaTime;
+using SpaceOS.Modules.Scheduling.Infrastructure.Calendars;
 using SpaceOS.Modules.Scheduling.Infrastructure.Persistence;
 
 namespace SpaceOS.Modules.Scheduling.Host;
@@ -134,9 +136,20 @@ public static class SchedulingEndpoints
                 .OrderByDescending(candidate => candidate.Sequence)
                 .FirstOrDefault();
 
-        return revision is null
-            ? NotFound(context, $"Schedule run {runId} has no active revision.")
-            : Results.Ok(revision.ToProposal(run.Id));
+        if (revision is null)
+        {
+            return NotFound(context, $"Schedule run {runId} has no active revision.");
+        }
+
+        // Dates are resolved against the calendars the plan is PINNED to, not today's. That is
+        // what makes them reproducible: the same revision answers with the same instants even
+        // after a newer calendar is approved (PlanDatingTests proves it).
+        var pinned = await PinnedCalendarsAsync(database, revision.CalendarRevisions, cancellationToken);
+        var dates = PlanDating
+            .Resolve(revision, pinned, DatingHorizon)
+            .ToDictionary(dated => dated.OperationId, StringComparer.Ordinal);
+
+        return Results.Ok(revision.ToProposal(run.Id, dates));
     }
 
     private static async Task<IResult> GetResourcesAsync(
@@ -242,6 +255,46 @@ public static class SchedulingEndpoints
     /// The calendar revision currently in force per resource: the highest revision number
     /// that has not been closed.
     /// </summary>
+    /// <summary>
+    /// How far ahead working time is materialised when dating a plan.
+    /// </summary>
+    /// <remarks>
+    /// A year covers any plan this module produces today, and the axis is built per request —
+    /// generous is cheap here, while a horizon that is too short would refuse to date a
+    /// perfectly valid long plan.
+    /// </remarks>
+    private static readonly Duration DatingHorizon = Duration.FromDays(365);
+
+    /// <summary>Loads exactly the calendar revisions a plan was pinned to.</summary>
+    /// <remarks>
+    /// Not "the current calendar of each resource": that would date a published plan against a
+    /// calendar approved after it, and the shop floor would see its schedule move on its own.
+    /// </remarks>
+    private static async Task<IReadOnlyDictionary<string, ResourceCalendarRevision>> PinnedCalendarsAsync(
+        SchedulingDbContext database,
+        IReadOnlyDictionary<string, int> pins,
+        CancellationToken cancellationToken)
+    {
+        if (pins.Count == 0)
+        {
+            return new Dictionary<string, ResourceCalendarRevision>(StringComparer.Ordinal);
+        }
+
+        var resourceKeys = pins.Keys.ToArray();
+        var candidates = await database.CalendarRevisions
+            .AsNoTracking()
+            .Include(calendar => calendar.Exceptions)
+            .Where(calendar => resourceKeys.Contains(calendar.ResourceKey))
+            .ToListAsync(cancellationToken);
+
+        // Filtered in memory against the pin map: a composite (key, revision) IN clause would
+        // be less readable than the handful of rows this loads for one plan.
+        return candidates
+            .Where(calendar => pins.TryGetValue(calendar.ResourceKey, out var pinnedRevision)
+                               && calendar.Revision == pinnedRevision)
+            .ToDictionary(calendar => calendar.ResourceKey, StringComparer.Ordinal);
+    }
+
     private static async Task<IReadOnlyList<ResourceCalendarRevision>> CurrentCalendarsAsync(
         SchedulingDbContext database,
         CancellationToken cancellationToken)

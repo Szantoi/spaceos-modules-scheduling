@@ -302,6 +302,23 @@ components:
           description: |
             The consumer's own provenance, reflected back unchanged. The platform stores these
             values and never resolves them.
+        startUtc:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            When the operation starts, resolved against the calendar revisions this plan is
+            PINNED to (see calendarRevisions on the proposal) — not against today's calendars.
+            The same revision therefore always answers with the same instants, including after a
+            newer calendar revision is approved.
+
+            Null on revisions computed before the plan recorded its timeline origin: those
+            cannot be dated, and a plausible-but-invented date would be worse than none.
+        finishUtc:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            When the operation's WORKING time is complete. Because durations are working time,
+            this can be days after startUtc for work that spans shifts, nights or a weekend.
       required:
         - operationId
         - scope
@@ -311,6 +328,8 @@ components:
         - automaticallyPlanned
         - standardRevision
         - sourceRevisions
+        - startUtc
+        - finishUtc
 
     DependencyEdge:
       type: object
