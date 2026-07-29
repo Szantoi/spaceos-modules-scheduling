@@ -41,6 +41,23 @@ public sealed record PlannedDependency
     /// <summary>Which rule produced <see cref="EarliestStartMinute"/>; null when nothing bound it.</summary>
     public BoundSource? StartSource { get; init; }
 
+    /// <summary>
+    /// The partial-release threshold this edge carried, when it had one.
+    /// </summary>
+    /// <remarks>
+    /// Doorstar asked for it (M3 verdict P2): the plan already says a release DECIDED the start
+    /// (<see cref="StartSource"/>), but not at which fraction — and "we let it go at 0.8" is a
+    /// different agreement from "at 0.5", even when today's dates coincide.
+    /// </remarks>
+    public decimal? ReleaseThresholdFraction { get; init; }
+
+    /// <summary>Whether <see cref="LagMinutes"/> counts working time or real elapsed time.</summary>
+    /// <remarks>
+    /// Defaults to working time — the meaning every edge carried before this field existed, so
+    /// an untouched plan is unchanged in every sense, hash included.
+    /// </remarks>
+    public LagKind LagKind { get; init; } = LagKind.WorkingTime;
+
     /// <summary>Conditions the consumer must see, e.g. a partial release delaying the start.</summary>
     public IReadOnlyList<DependencyWarning> Warnings { get; init; } = [];
 

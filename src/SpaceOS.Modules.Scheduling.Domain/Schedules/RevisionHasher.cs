@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using SpaceOS.Modules.Scheduling.Domain.Dependencies;
 
 namespace SpaceOS.Modules.Scheduling.Domain.Schedules;
 
@@ -86,6 +87,29 @@ public static class RevisionHasher
             Append(canonical, Format(edge.LagMinutes));
             Append(canonical, edge.EarliestStartMinute is { } bound ? Format(bound) : string.Empty);
             Append(canonical, edge.StartSource?.ToString() ?? string.Empty);
+
+            // ADDITIVE FIELDS, hashed only when they differ from the default.
+            //
+            // The hash has to cover everything that travels on the wire — otherwise two
+            // different contents can share one hash and it stops being an identity. But
+            // hashing a default unconditionally would move the hash of every plan that never
+            // used these fields, and Doorstar re-quotes those hashes. So the rule is: a
+            // default-valued field contributes NOTHING, byte for byte (pinned by
+            // RevisionHashCompatibilityTests).
+            //
+            // Each value is preceded by a LABEL: without it, a plan carrying only a lag kind
+            // and one carrying only a release fraction could produce the same bytes.
+            if (edge.ReleaseThresholdFraction is { } fraction)
+            {
+                Append(canonical, "release");
+                Append(canonical, Format(fraction));
+            }
+
+            if (edge.LagKind != LagKind.WorkingTime)
+            {
+                Append(canonical, "lagkind");
+                Append(canonical, edge.LagKind.ToString());
+            }
 
             // Warnings are sorted, not taken as produced: they are a set of conditions, and
             // the order a resolver happened to append them in carries no meaning.

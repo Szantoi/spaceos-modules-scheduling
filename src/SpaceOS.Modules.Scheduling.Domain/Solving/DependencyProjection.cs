@@ -63,6 +63,11 @@ public static class DependencyProjection
                 LagMinutes = dependency.LagMinutes,
                 EarliestStartMinute = resolved.EarliestStartMinute,
                 StartSource = resolved.StartSource,
+
+                // Carried through from the request, not re-derived: the revision must record
+                // the agreement it was computed under, not what today's inputs would say.
+                ReleaseThresholdFraction = dependency.ReleaseThresholdFraction,
+                LagKind = dependency.LagKind,
                 Warnings = resolved.Warnings,
             });
 
