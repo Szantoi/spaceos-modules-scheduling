@@ -95,10 +95,17 @@ public sealed class RevisionHashCompatibilityTests
     {
         // The other half of the bargain: if the field travels on the wire, it MUST reach the
         // hash — otherwise two different agreements share one identity.
+        //
+        // The exact pair below is what was sent to Doorstar as the announced hash movement:
+        // the same plan, before and after this round. It is pinned here so the notice and the
+        // code cannot drift apart.
         var (operations, calendars) = ReferencePlan();
 
         var withRelease = Edge() with { ReleaseThresholdFraction = 0.5m };
 
+        Assert.Equal(
+            "ae8fbe42d1be073cd87fc6a14370d1522b97c454705113bbf97e1dfc1d30f4de",
+            RevisionHasher.ComputeHash(operations, [withRelease], calendars));
         Assert.NotEqual(
             PinnedHash,
             RevisionHasher.ComputeHash(operations, [withRelease], calendars));

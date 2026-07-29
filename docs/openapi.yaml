@@ -13,7 +13,7 @@ openapi: 3.1.0
 
 info:
   title: SpaceOS Scheduling API
-  version: 1.0.0-preview.1
+  version: 1.0.0-preview.2
   summary: Read-only scheduling contract — plans, resources and operation standards.
   description: |
     Every response is tenant-scoped by the caller's token. The tenant is never taken from a

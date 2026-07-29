@@ -25,7 +25,7 @@ public static class SchedulingContractInfo
     public const string BasePath = "/api/scheduling/v1";
 
     /// <summary>Contract version exposed in the OpenAPI document.</summary>
-    public const string Version = "1.0.0-preview.1";
+    public const string Version = "1.0.0-preview.2";
 }
 
 /// <summary>Opaque Kernel work reference: project → epic → task.</summary>
