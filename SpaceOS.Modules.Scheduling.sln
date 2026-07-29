@@ -23,6 +23,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Host.Tests", "tests\SpaceOS.Modules.Scheduling.Host.Tests\SpaceOS.Modules.Scheduling.Host.Tests.csproj", "{7135FC62-0B3F-4739-972E-57CB01A551BA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Solver.OrTools", "src\SpaceOS.Modules.Scheduling.Solver.OrTools\SpaceOS.Modules.Scheduling.Solver.OrTools.csproj", "{11D25B1E-1C14-4530-A75E-630B87FB4E1D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceOS.Modules.Scheduling.Solver.OrTools.Tests", "tests\SpaceOS.Modules.Scheduling.Solver.OrTools.Tests\SpaceOS.Modules.Scheduling.Solver.OrTools.Tests.csproj", "{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,6 +64,14 @@ Global
 		{7135FC62-0B3F-4739-972E-57CB01A551BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7135FC62-0B3F-4739-972E-57CB01A551BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7135FC62-0B3F-4739-972E-57CB01A551BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11D25B1E-1C14-4530-A75E-630B87FB4E1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11D25B1E-1C14-4530-A75E-630B87FB4E1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11D25B1E-1C14-4530-A75E-630B87FB4E1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11D25B1E-1C14-4530-A75E-630B87FB4E1D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{51524C16-78D1-4C9A-AC28-9A210306CD3D} = {793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}
@@ -69,5 +81,7 @@ Global
 		{C9F394A2-73ED-4C9D-97F4-D252A1EA030C} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
 		{199FE541-3C98-4833-96AE-EDDE19A5B4DA} = {227DA368-667F-449B-9BA7-3DD378DBA941}
 		{7135FC62-0B3F-4739-972E-57CB01A551BA} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
+		{11D25B1E-1C14-4530-A75E-630B87FB4E1D} = {793FFCB8-4C09-4BAD-B2C6-A1E11A1C48FB}
+		{0ACF0D88-A2C4-4957-A7C4-F81B5D73B7FB} = {CA03BC8D-563F-4D91-99A8-1603013D3E4F}
 	EndGlobalSection
 EndGlobal

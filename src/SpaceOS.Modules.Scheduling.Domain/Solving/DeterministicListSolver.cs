@@ -13,8 +13,8 @@ namespace SpaceOS.Modules.Scheduling.Domain.Solving;
 /// <para>
 /// This is the REFERENCE strategy: a list scheduler, not an optimiser. It answers "when can
 /// this actually run" — earliest feasible start, honouring the precedence rules, the partial
-/// release contract and the resource's parallel capacity. The CP-SAT adapter (ADR-070) will
-/// optimise makespan on the same port and is measured against this one.
+/// release contract and the resource's parallel capacity. The CP-SAT adapter (ADR-070)
+/// optimises makespan on the same port and is measured against this one.
 /// </para>
 /// <para>
 /// <b>Determinism is a requirement, not a happy accident</b> (ADR-070 D3). The revision hash
@@ -37,11 +37,7 @@ public sealed class DeterministicListSolver : ISchedulingSolver
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var operations = Validate(request);
-        var capacities = request.Resources.ToDictionary(
-            resource => resource.ResourceKey, resource => resource.Capacity, StringComparer.Ordinal);
-
-        var order = TopologicalOrder(request, operations);
+        var validated = SchedulingRequestValidator.Validate(request);
 
         // Placed intervals per resource, so capacity can be checked without rescanning the
         // whole plan. Kept sorted by start for the scan below.
@@ -51,16 +47,19 @@ public sealed class DeterministicListSolver : ISchedulingSolver
             StringComparer.Ordinal);
 
         var placed = new Dictionary<string, OperationPlan>(StringComparer.Ordinal);
-        var edges = new List<PlannedDependency>();
         var diagnostics = new List<SchedulingDiagnostic>();
 
-        foreach (var operationId in order)
+        foreach (var operationId in validated.TopologicalOrder)
         {
-            var operation = operations[operationId];
-            var (earliest, resolved) = ResolveEarliestStart(request, operation, placed, diagnostics);
+            var operation = validated.Operations[operationId];
+            var earliest = EarliestStart(request, operation, placed);
 
             var start = operation.FixedStartMinute
-                ?? FirstFeasibleStart(earliest, operation, occupancy[operation.ResourceKey], capacities[operation.ResourceKey]);
+                ?? FirstFeasibleStart(
+                    earliest,
+                    operation,
+                    occupancy[operation.ResourceKey],
+                    validated.Capacities[operation.ResourceKey]);
             var finish = start + operation.DurationMinutes;
 
             if (!operation.EligibleForAutomaticPlanning)
@@ -87,119 +86,33 @@ public sealed class DeterministicListSolver : ISchedulingSolver
             {
                 Insert(occupancy[operation.ResourceKey], (start, finish));
             }
-
-            edges.AddRange(resolved);
         }
+
+        var (edges, edgeDiagnostics) = DependencyProjection.Project(request, validated.Operations, placed);
 
         return new SchedulingSolution
         {
-            Operations = [.. order.Select(id => placed[id])],
-            Dependencies = [.. edges
-                .OrderBy(edge => edge.PredecessorOperationId, StringComparer.Ordinal)
-                .ThenBy(edge => edge.SuccessorOperationId, StringComparer.Ordinal)
-                .ThenBy(edge => edge.Relation)],
+            Operations = [.. validated.TopologicalOrder.Select(id => placed[id])],
+            Dependencies = edges,
             CalendarRevisions = request.Resources.ToDictionary(
                 resource => resource.ResourceKey, resource => resource.CalendarRevision, StringComparer.Ordinal),
-            Diagnostics = diagnostics,
+            Diagnostics = [.. diagnostics, .. edgeDiagnostics],
             IsReproducible = true,
         };
     }
 
-    private static Dictionary<string, SolverOperation> Validate(SchedulingRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request.Operations);
-        ArgumentNullException.ThrowIfNull(request.Resources);
-
-        var operations = new Dictionary<string, SolverOperation>(StringComparer.Ordinal);
-        foreach (var operation in request.Operations)
-        {
-            if (operation.DurationMinutes < 0m)
-            {
-                throw new ArgumentException(
-                    $"Operation '{operation.OperationId}' has a negative duration.", nameof(request));
-            }
-
-            if (!operations.TryAdd(operation.OperationId, operation))
-            {
-                throw new ArgumentException(
-                    $"Operation '{operation.OperationId}' appears more than once.", nameof(request));
-            }
-        }
-
-        var resources = request.Resources.Select(resource => resource.ResourceKey).ToHashSet(StringComparer.Ordinal);
-        if (resources.Count != request.Resources.Count)
-        {
-            throw new ArgumentException("A resource appears more than once in the request.", nameof(request));
-        }
-
-        foreach (var resource in request.Resources.Where(resource => resource.Capacity <= 0m))
-        {
-            // Capacity zero would make every operation on it unplaceable, and the loop below
-            // would search forever for a slot that cannot exist.
-            throw new ArgumentException(
-                $"Resource '{resource.ResourceKey}' has non-positive capacity {resource.Capacity}.", nameof(request));
-        }
-
-        var orphan = request.Operations.FirstOrDefault(operation => !resources.Contains(operation.ResourceKey));
-        if (orphan is not null)
-        {
-            throw new ArgumentException(
-                $"Operation '{orphan.OperationId}' runs on resource '{orphan.ResourceKey}', which is not in the request.",
-                nameof(request));
-        }
-
-        return operations;
-    }
-
-    private static IReadOnlyList<string> TopologicalOrder(
-        SchedulingRequest request,
-        Dictionary<string, SolverOperation> operations)
-    {
-        // Reuses the graph validator rather than sorting again here: it already refuses
-        // cycles, self-edges and dangling references with named issue codes, and its Kahn
-        // sort is deterministic. A second sort would be a second definition of "valid".
-        var validation = DependencyGraph.Validate(
-            [.. operations.Keys.OrderBy(id => id, StringComparer.Ordinal).Select(id => new OperationNode(id))],
-            [.. request.Dependencies.Select(dependency => new Dependencies.DependencyEdge
-            {
-                PredecessorId = dependency.PredecessorOperationId,
-                SuccessorId = dependency.SuccessorOperationId,
-                Type = RelationCode(dependency.Relation),
-                LagMinutes = dependency.LagMinutes,
-                ReleaseThresholdFraction = dependency.ReleaseThresholdFraction,
-            })]);
-
-        if (!validation.IsValid || validation.TopologicalOrder is null)
-        {
-            var codes = string.Join(", ", validation.Issues.Select(issue => issue.Code).Distinct());
-            throw new ArgumentException(
-                $"The dependency network cannot be scheduled: {codes}.", nameof(request));
-        }
-
-        return validation.TopologicalOrder;
-    }
-
-    private static string RelationCode(DependencyType relation) => relation switch
-    {
-        DependencyType.FinishToStart => "FS",
-        DependencyType.StartToStart => "SS",
-        DependencyType.FinishToFinish => "FF",
-        DependencyType.StartToFinish => "SF",
-        _ => throw new ArgumentOutOfRangeException(nameof(relation), relation, "Unmapped relation."),
-    };
-
-    /// <summary>
-    /// Combines every incoming edge into one earliest start, and records what each edge
-    /// resolved to.
-    /// </summary>
-    private static (decimal Earliest, List<PlannedDependency> Edges) ResolveEarliestStart(
+    /// <summary>Combines every incoming edge into one earliest start.</summary>
+    /// <remarks>
+    /// Only the bound is derived here; what each edge RESOLVED to — its source and warnings —
+    /// is projected once, after placement, by <see cref="DependencyProjection"/>, so the
+    /// explanation cannot drift from the one the CP-SAT adapter produces.
+    /// </remarks>
+    private static decimal EarliestStart(
         SchedulingRequest request,
         SolverOperation operation,
-        IReadOnlyDictionary<string, OperationPlan> placed,
-        List<SchedulingDiagnostic> diagnostics)
+        IReadOnlyDictionary<string, OperationPlan> placed)
     {
         var earliest = 0m;
-        var edges = new List<PlannedDependency>();
 
         var incoming = request.Dependencies
             .Where(dependency => string.Equals(
@@ -218,7 +131,7 @@ public sealed class DeterministicListSolver : ISchedulingSolver
                 PredecessorStartMinute = predecessor.StartMinute,
                 PredecessorFinishMinute = predecessor.FinishMinute,
                 LagMinutes = dependency.LagMinutes,
-                PartialReleaseMinute = PartialRelease(dependency, predecessor),
+                PartialReleaseMinute = DependencyProjection.PartialReleaseMinute(dependency, predecessor),
                 FixedStartMinute = operation.FixedStartMinute,
             });
 
@@ -227,37 +140,18 @@ public sealed class DeterministicListSolver : ISchedulingSolver
                 earliest = Math.Max(earliest, bound);
             }
 
-            edges.Add(new PlannedDependency
+            // The finish branch is a real constraint, not decoration: an FF/SF edge bounds the
+            // successor's FINISH, and since the duration is already fixed, that is a bound on
+            // its start too. Taking only the start branch left FF/SF edges silently
+            // unsatisfied — the plan claimed to honour a dependency it did not.
+            if (resolved.EarliestFinishMinute is { } finishBound)
             {
-                PredecessorOperationId = dependency.PredecessorOperationId,
-                SuccessorOperationId = dependency.SuccessorOperationId,
-                Relation = dependency.Relation,
-                LagMinutes = dependency.LagMinutes,
-                EarliestStartMinute = resolved.EarliestStartMinute,
-                StartSource = resolved.StartSource,
-                Warnings = resolved.Warnings,
-            });
-
-            if (resolved.StartSource == BoundSource.FixedOverride)
-            {
-                diagnostics.Add(new SchedulingDiagnostic(
-                    SchedulingDiagnosticCode.FixedStartOverridesPrecedence, operation.OperationId));
-            }
-
-            if (resolved.Warnings.Contains(DependencyWarning.PartialReleaseDelaysStart))
-            {
-                diagnostics.Add(new SchedulingDiagnostic(
-                    SchedulingDiagnosticCode.PartialReleaseDelaysStart, operation.OperationId));
+                earliest = Math.Max(earliest, finishBound - operation.DurationMinutes);
             }
         }
 
-        return (earliest, edges);
+        return earliest;
     }
-
-    private static decimal? PartialRelease(SolverDependency dependency, OperationPlan predecessor) =>
-        dependency.ReleaseThresholdFraction is { } fraction
-            ? predecessor.StartMinute + ((predecessor.FinishMinute - predecessor.StartMinute) * fraction)
-            : null;
 
     /// <summary>
     /// Finds the first instant at or after <paramref name="earliest"/> where the resource has

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The CP-SAT adapter lives in its OWN assembly, not in Infrastructure (ADR-070 D1 places it
+    outside the domain; this goes one step further on purpose). Google.OrTools ships native
+    binaries — 25.22 MB for linux-x64 alone — and Infrastructure is what `dotnet ef` loads for
+    every migration. Keeping them apart means the persistence layer and its tooling stay free
+    of solver binaries, and the "ship the solver as a separate artifact" option ADR-070 Q2
+    leaves open (should the bundle pass 100 MB) stays a packaging decision rather than a
+    rewrite.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ADR-070 D4 supply chain: the exact pin, matched by a committed lockfile. -->
+    <PackageReference Include="Google.OrTools" Version="9.15.6755" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SpaceOS.Modules.Scheduling.Domain\SpaceOS.Modules.Scheduling.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

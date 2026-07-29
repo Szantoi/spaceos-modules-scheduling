@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SpaceOS.Modules.Scheduling.Solver.OrTools\SpaceOS.Modules.Scheduling.Solver.OrTools.csproj" />
+
+    <!-- The shared solver conformance suite and its scenario builders live in the Domain test
+         assembly. Referencing it is what makes "both strategies, same cases" literal rather
+         than a claim: a copied case set would drift and the comparison would stop meaning
+         anything. Only the concrete subclasses in THIS assembly are collected as tests. -->
+    <ProjectReference Include="..\SpaceOS.Modules.Scheduling.Domain.Tests\SpaceOS.Modules.Scheduling.Domain.Tests.csproj" />
+  </ItemGroup>
+
+</Project>
