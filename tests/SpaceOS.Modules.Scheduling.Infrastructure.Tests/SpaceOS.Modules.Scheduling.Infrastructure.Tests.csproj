@@ -22,6 +22,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SpaceOS.Modules.Scheduling.Infrastructure\SpaceOS.Modules.Scheduling.Infrastructure.csproj" />
+
+    <!-- The solver scenario builders live in the Domain test assembly. Materialisation is
+         measured on plans a REAL strategy produced, not on hand-written ones: a hand-built
+         plan could satisfy the calendar by accident and would stop being evidence. -->
+    <ProjectReference Include="..\SpaceOS.Modules.Scheduling.Domain.Tests\SpaceOS.Modules.Scheduling.Domain.Tests.csproj" />
   </ItemGroup>
 
 </Project>
