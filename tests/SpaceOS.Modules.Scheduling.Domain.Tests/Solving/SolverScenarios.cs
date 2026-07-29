@@ -51,13 +51,15 @@ public static class SolverScenarios
         string successor,
         DependencyType relation = DependencyType.FinishToStart,
         decimal lag = 0m,
-        decimal? release = null) => new()
+        decimal? release = null,
+        LagKind lagKind = LagKind.WorkingTime) => new()
         {
             PredecessorOperationId = predecessor,
             SuccessorOperationId = successor,
             Relation = relation,
             LagMinutes = lag,
             ReleaseThresholdFraction = release,
+            LagKind = lagKind,
         };
 
     /// <summary>A request whose resources are derived from the operations.</summary>

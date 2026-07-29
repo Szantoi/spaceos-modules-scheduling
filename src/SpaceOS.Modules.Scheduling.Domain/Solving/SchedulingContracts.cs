@@ -58,6 +58,15 @@ public sealed record SolverDependency
     public decimal LagMinutes { get; init; }
 
     /// <summary>
+    /// Whether <see cref="LagMinutes"/> counts working time or real elapsed time.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to working time, which is what every dependency meant before this existed —
+    /// so an existing request keeps its behaviour exactly.
+    /// </remarks>
+    public LagKind LagKind { get; init; } = LagKind.WorkingTime;
+
+    /// <summary>
     /// Fraction of the predecessor's duration after which the successor may start.
     /// </summary>
     /// <remarks>

@@ -29,6 +29,16 @@ public enum MaterialisationCode
     /// minutes, and two calendars turn the same count into different instants.
     /// </remarks>
     PrecedenceBrokenAcrossCalendars,
+
+    /// <summary>
+    /// An elapsed-time lag did not settle within the allowed number of solver passes.
+    /// </summary>
+    /// <remarks>
+    /// The plan is the last one computed, and it may release the successor before the physical
+    /// process is finished. Reported rather than swallowed: a curing time that silently did not
+    /// apply is exactly the kind of defect nobody finds until the material is ruined.
+    /// </remarks>
+    ElapsedLagNotSettled,
 }
 
 /// <summary>One remark about a materialised plan.</summary>
