@@ -80,6 +80,19 @@ public static class SchedulingProjections
         _ => throw new ArgumentOutOfRangeException(nameof(warning), warning, "Unmapped dependency warning."),
     };
 
+    /// <summary>Wire code for what a lag is measured in.</summary>
+    /// <remarks>
+    /// Every wire code in this contract is produced by a mapper like this one, never by
+    /// <c>ToString()</c> on the enum: a rename in the domain would otherwise silently change
+    /// the published contract, and the consumer would find out at runtime.
+    /// </remarks>
+    public static string LagKindCode(LagKind kind) => kind switch
+    {
+        LagKind.WorkingTime => "working",
+        LagKind.ElapsedTime => "elapsed",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unmapped lag kind."),
+    };
+
     /// <summary>Relation codes are the planning-standard abbreviations, not enum names.</summary>
     public static string RelationCode(DependencyType relation) => relation switch
     {
@@ -121,7 +134,9 @@ public static class SchedulingProjections
         edge.LagMinutes,
         edge.EarliestStartMinute,
         edge.StartSource is { } source ? Code(source) : null,
-        [.. edge.Warnings.Select(WarningCode)]);
+        [.. edge.Warnings.Select(WarningCode)],
+        edge.ReleaseThresholdFraction,
+        LagKindCode(edge.LagKind));
 
     /// <summary>Projects a revision as the Doorstar proposal payload.</summary>
     public static ProposalDto ToProposal(this ScheduleRevision revision, Guid runId) => new(

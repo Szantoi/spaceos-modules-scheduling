@@ -334,6 +334,21 @@ components:
           items:
             type: string
             enum: [partial_release_delays_fs_start]
+        releaseThresholdFraction:
+          type: [number, 'null']
+          description: >-
+            Fraction of the predecessor's working time after which the successor was released,
+            when the edge carries a partial release; null otherwise. "Released at 0.8" is a
+            different agreement from "at 0.5" even when the resulting dates coincide.
+        lagKind:
+          type: string
+          enum: [working, elapsed]
+          default: working
+          description: >-
+            What lagMinutes is measured in. "working" counts working time on the successor's
+            calendar and pauses when the resource does; "elapsed" is real clock time — a curing
+            or drying period runs through the weekend. Absent on older payloads, where it always
+            meant "working".
       required:
         - predecessorOperationId
         - successorOperationId
@@ -342,6 +357,8 @@ components:
         - earliestStartMinute
         - startSource
         - warnings
+        - releaseThresholdFraction
+        - lagKind
 
     Proposal:
       type: object

@@ -77,6 +77,10 @@ public sealed record OperationPlanDto(
 /// <param name="EarliestStartMinute">Resolved earliest start, when this edge binds it.</param>
 /// <param name="StartSource">Which rule produced the start bound: fixed_override, partial_release or dependency.</param>
 /// <param name="Warnings">Conditions the consumer must see, e.g. partial_release_delays_fs_start.</param>
+/// <param name="ReleaseThresholdFraction">
+/// The partial-release threshold in force, when the edge carries one; null otherwise.
+/// </param>
+/// <param name="LagKind">working or elapsed — what <paramref name="LagMinutes"/> is measured in.</param>
 public sealed record DependencyEdgeDto(
     string PredecessorOperationId,
     string SuccessorOperationId,
@@ -84,7 +88,9 @@ public sealed record DependencyEdgeDto(
     decimal LagMinutes,
     decimal? EarliestStartMinute,
     string? StartSource,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    decimal? ReleaseThresholdFraction,
+    string LagKind);
 
 /// <summary>
 /// The Doorstar main endpoint's payload: a proposal with its provenance.
