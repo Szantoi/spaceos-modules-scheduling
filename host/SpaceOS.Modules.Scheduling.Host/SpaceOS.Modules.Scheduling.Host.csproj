@@ -2,6 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SpaceOS.Modules.Scheduling.Infrastructure\SpaceOS.Modules.Scheduling.Infrastructure.csproj" />
+
+    <!-- The CP-SAT adapter is referenced by the HOST, not by Infrastructure: the native
+         binaries stay out of the persistence layer and its `dotnet ef` tooling (ADR-070
+         supplementary note). Which strategy actually runs is a configuration decision —
+         see SchedulingSolverRegistration. -->
+    <ProjectReference Include="..\..\src\SpaceOS.Modules.Scheduling.Solver.OrTools\SpaceOS.Modules.Scheduling.Solver.OrTools.csproj" />
   </ItemGroup>
 
   <ItemGroup>
