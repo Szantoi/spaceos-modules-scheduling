@@ -75,11 +75,76 @@ public static class SchedulingRequestValidator
                 nameof(request));
         }
 
+        var capacities = request.Resources.ToDictionary(
+            resource => resource.ResourceKey, resource => resource.Capacity, StringComparer.Ordinal);
+
+        ValidateFixedStarts(request, capacities);
+
         return new ValidatedSchedulingRequest(
             operations,
             TopologicalOrder(request, operations),
-            request.Resources.ToDictionary(
-                resource => resource.ResourceKey, resource => resource.Capacity, StringComparer.Ordinal));
+            capacities);
+    }
+
+    /// <summary>
+    /// Refuses fixed starts that cannot all fit their resource at once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two operations pinned to the same minute on a single-capacity resource is a
+    /// CONTRADICTION IN THE REQUEST, not a scheduling problem — no strategy can honour both
+    /// pins and the capacity. Deciding it here (business owner decision, 2026-07-29) keeps the
+    /// strategies from disagreeing about it: previously the optimiser proved it unsatisfiable
+    /// and threw, while the reference placed both and silently exceeded the capacity. Which
+    /// answer a planner got depended on configuration, which is the worst of the three
+    /// outcomes.
+    /// </para>
+    /// <para>
+    /// Only FIXED starts are checked. Everything else is exactly what the solver is for: it
+    /// may queue operations, and an "overloaded" resource with free starts is a plan, not a
+    /// contradiction.
+    /// </para>
+    /// </remarks>
+    private static void ValidateFixedStarts(
+        SchedulingRequest request,
+        IReadOnlyDictionary<string, decimal> capacities)
+    {
+        var pinned = request.Operations
+            .Where(operation => operation.FixedStartMinute.HasValue)
+            // A zero-length milestone occupies nothing, so it cannot contend for capacity.
+            .Where(operation => operation.DurationMinutes > 0m)
+            .OrderBy(operation => operation.FixedStartMinute!.Value)
+            .ThenBy(operation => operation.OperationId, StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var group in pinned.GroupBy(operation => operation.ResourceKey, StringComparer.Ordinal))
+        {
+            // Whole units of capacity: a 2.5-capacity resource admits two concurrent
+            // operations, and anything below one still admits one. Same rule the strategies
+            // apply, so the validator cannot refuse a request they would have accepted.
+            var concurrent = Math.Max(1m, Math.Floor(capacities[group.Key]));
+            var pins = group.ToList();
+
+            // The count can only rise at a start, so those are the only instants to sample.
+            foreach (var candidate in pins)
+            {
+                var instant = candidate.FixedStartMinute!.Value;
+                var overlapping = pins
+                    .Where(operation => operation.FixedStartMinute!.Value <= instant
+                        && operation.FixedStartMinute!.Value + operation.DurationMinutes > instant)
+                    .ToList();
+
+                if (overlapping.Count > concurrent)
+                {
+                    var names = string.Join(", ", overlapping.Select(operation => $"'{operation.OperationId}'"));
+                    throw new ArgumentException(
+                        $"Operations {names} are pinned to resource '{group.Key}' at minute {instant}, " +
+                        $"but it can run {concurrent} at a time. A fixed start overrides the dependency " +
+                        "network, never the resource's capacity — move a pin or raise the capacity.",
+                        nameof(request));
+                }
+            }
+        }
     }
 
     private static IReadOnlyList<string> TopologicalOrder(

@@ -117,22 +117,6 @@ public sealed class CpSatSchedulingSolverTests
             $"'b' starts at {second.StartMinute}, before 'a' finishes at {first.FinishMinute}.");
     }
 
-    [Fact]
-    public void Fixed_starts_that_cannot_all_fit_are_refused_rather_than_approximated()
-    {
-        // Two operations pinned to the same minute on a single-capacity resource. The planner
-        // asked for something the resource cannot do; returning a plan that quietly overloads
-        // it would hide the conflict exactly where it matters.
-        //
-        // This is a deliberate difference from the reference strategy, which places fixed
-        // starts unconditionally and can therefore exceed capacity. Reported to root as part
-        // of the M4 slice rather than smoothed over here.
-        var request = Request(
-            [Operation("a", fixedStart: 0m), Operation("b", fixedStart: 0m)]);
-
-        Assert.Throws<InvalidOperationException>(() => new CpSatSchedulingSolver().Solve(request));
-    }
-
     private static SchedulingRequest ContendedRequest() => Request(
         [
             Operation("a", duration: 60m),

@@ -179,6 +179,20 @@ public abstract class SchedulingSolverConformanceTests
     }
 
     [Fact]
+    public void Fixed_starts_that_exceed_capacity_are_refused_by_every_strategy()
+    {
+        // Business owner decision (2026-07-29): two pins on the same minute of a
+        // single-capacity resource is a contradiction in the REQUEST, so it is refused before
+        // any search runs. Previously the two strategies disagreed — the optimiser proved it
+        // unsatisfiable, the reference placed both and exceeded the capacity — which made the
+        // answer depend on configuration. This case exists to keep them from drifting apart
+        // again: neither may get far enough to have an opinion.
+        var request = Request([Operation("a", fixedStart: 0m), Operation("b", fixedStart: 0m)]);
+
+        Assert.Throws<ArgumentException>(() => Solve(request));
+    }
+
+    [Fact]
     public void Non_positive_capacity_is_refused_instead_of_searching_forever()
     {
         var request = new SchedulingRequest
