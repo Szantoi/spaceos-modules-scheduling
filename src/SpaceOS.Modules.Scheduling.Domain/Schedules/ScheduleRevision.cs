@@ -28,7 +28,8 @@ public sealed class ScheduleRevision
         IReadOnlyDictionary<string, int> calendarRevisions,
         string contentHash,
         ScheduleRevisionState state,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        DateTimeOffset? timelineOriginUtc)
     {
         Id = id;
         Sequence = sequence;
@@ -38,6 +39,7 @@ public sealed class ScheduleRevision
         ContentHash = contentHash;
         State = state;
         CreatedAtUtc = createdAtUtc;
+        TimelineOriginUtc = timelineOriginUtc;
     }
 
     /// <summary>
@@ -83,6 +85,18 @@ public sealed class ScheduleRevision
     /// <summary>When the revision was calculated.</summary>
     public DateTimeOffset CreatedAtUtc { get; }
 
+    /// <summary>
+    /// The instant working minute zero refers to; null on revisions computed before the plan
+    /// recorded it.
+    /// </summary>
+    /// <remarks>
+    /// Without this the plan cannot be turned into dates at all: the operations are stored in
+    /// WORKING MINUTES, and minutes are only a schedule once you know where they start from.
+    /// Using the calculation time instead would be arbitrary — the same plan recomputed an hour
+    /// later would resolve to different dates while claiming to be the same content.
+    /// </remarks>
+    public DateTimeOffset? TimelineOriginUtc { get; }
+
     /// <summary>True once the revision can no longer change state.</summary>
     public bool IsTerminal => State is ScheduleRevisionState.Discarded or ScheduleRevisionState.Superseded;
 
@@ -92,7 +106,8 @@ public sealed class ScheduleRevision
         IReadOnlyList<OperationPlan> operations,
         IReadOnlyList<PlannedDependency> dependencies,
         IReadOnlyDictionary<string, int> calendarRevisions,
-        DateTimeOffset createdAtUtc)
+        DateTimeOffset createdAtUtc,
+        DateTimeOffset? timelineOriginUtc = null)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(dependencies);
@@ -165,8 +180,8 @@ public sealed class ScheduleRevision
         var pins = new Dictionary<string, int>(calendarRevisions, StringComparer.Ordinal);
         return new ScheduleRevision(
             id, sequence, snapshot, edges, pins,
-            RevisionHasher.ComputeHash(snapshot, edges, pins),
-            ScheduleRevisionState.Proposal, createdAtUtc);
+            RevisionHasher.ComputeHash(snapshot, edges, pins, timelineOriginUtc),
+            ScheduleRevisionState.Proposal, createdAtUtc, timelineOriginUtc);
     }
 
     internal void TransitionTo(ScheduleRevisionState target)

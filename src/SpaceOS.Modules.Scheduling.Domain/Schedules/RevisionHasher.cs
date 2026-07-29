@@ -38,7 +38,8 @@ public static class RevisionHasher
     public static string ComputeHash(
         IEnumerable<OperationPlan> operations,
         IEnumerable<PlannedDependency> dependencies,
-        IReadOnlyDictionary<string, int> calendarRevisions)
+        IReadOnlyDictionary<string, int> calendarRevisions,
+        DateTimeOffset? timelineOriginUtc = null)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(dependencies);
@@ -126,6 +127,19 @@ public static class RevisionHasher
         {
             Append(canonical, resourceKey);
             Append(canonical, revision.ToString(CultureInfo.InvariantCulture));
+            canonical.Append('\n');
+        }
+
+        // The timeline origin decides what every minute in this plan MEANS as a date, so it is
+        // content. Additive, hence hashed only when present: a revision computed before the
+        // field existed keeps its hash byte for byte.
+        //
+        // Milliseconds since the epoch rather than a formatted timestamp: no culture, no
+        // offset spelling, no round-trip format to argue about.
+        if (timelineOriginUtc is { } origin)
+        {
+            canonical.Append("--origin\n");
+            Append(canonical, origin.ToUniversalTime().ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
             canonical.Append('\n');
         }
 

@@ -132,6 +132,51 @@ public sealed class RevisionHashCompatibilityTests
     }
 
     [Fact]
+    public void A_timeline_origin_changes_the_hash()
+    {
+        // The origin is an INPUT to dating, not a derived value: the same working minutes
+        // starting from another instant are a different schedule. Root's rule for the wire
+        // dates ("derived fields need not be hashed, PROVIDED every input is") only holds
+        // because this one is hashed — otherwise two plans could share a hash and resolve to
+        // different dates.
+        var (operations, calendars) = ReferencePlan();
+
+        var dated = RevisionHasher.ComputeHash(
+            operations, [Edge()], calendars,
+            new DateTimeOffset(2026, 8, 3, 6, 0, 0, TimeSpan.Zero));
+
+        Assert.NotEqual(PinnedHash, dated);
+    }
+
+    [Fact]
+    public void Two_different_origins_hash_differently()
+    {
+        var (operations, calendars) = ReferencePlan();
+
+        var monday = RevisionHasher.ComputeHash(
+            operations, [Edge()], calendars, new DateTimeOffset(2026, 8, 3, 6, 0, 0, TimeSpan.Zero));
+        var tuesday = RevisionHasher.ComputeHash(
+            operations, [Edge()], calendars, new DateTimeOffset(2026, 8, 4, 6, 0, 0, TimeSpan.Zero));
+
+        Assert.NotEqual(monday, tuesday);
+    }
+
+    [Fact]
+    public void The_same_origin_written_in_another_offset_hashes_identically()
+    {
+        // 08:00+02:00 and 06:00Z are the same instant. A plan must not look changed because
+        // someone's client spelled the offset differently.
+        var (operations, calendars) = ReferencePlan();
+
+        var utc = RevisionHasher.ComputeHash(
+            operations, [Edge()], calendars, new DateTimeOffset(2026, 8, 3, 6, 0, 0, TimeSpan.Zero));
+        var local = RevisionHasher.ComputeHash(
+            operations, [Edge()], calendars, new DateTimeOffset(2026, 8, 3, 8, 0, 0, TimeSpan.FromHours(2)));
+
+        Assert.Equal(utc, local);
+    }
+
+    [Fact]
     public void A_lag_kind_cannot_be_confused_with_a_release_threshold()
     {
         // Why each additive value carries a label in the canonical form: without one, a plan
